@@ -256,10 +256,17 @@ curl -s -X POST http://localhost:8000/gd-cim-api/submit/batch \
 printf '%s\n' '{"metric":"cpu","v":0.11}' '{"metric":"cpu","v":0.12}' '{"metric":"mem","v":123}' > tiny.ndjson
 
 # Plain
-curl -s -X POST http://localhost:8000/gd-cim-api/submit/ndjson   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/x-ndjson"   --data-binary @tiny.ndjson
+curl -s -X POST http://localhost:8000/gd-cim-api/submit/ndjson \
+     -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/x-ndjson" \
+     --data-binary @tiny.ndjson
 
 # Gzipped
-gzip -c tiny.ndjson | curl -s -X POST http://localhost:8000/gd-cim-api/submit/ndjson   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/x-ndjson"   -H "Content-Encoding: gzip"   --data-binary @-
+gzip -c tiny.ndjson | curl -s -X POST http://localhost:8000/gd-cim-api/submit/ndjson \
+     -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/x-ndjson" \
+     -H "Content-Encoding: gzip" \
+     --data-binary @-
 ```
 
 #### F. Gen and submit chunks
