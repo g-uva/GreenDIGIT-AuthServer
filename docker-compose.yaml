@@ -1,0 +1,68 @@
+services:
+  cim-fastapi:
+    container_name: cim-fastapi
+    build: .
+    working_dir: /app
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    command: ["sh", "-c", "pip install --no-cache-dir -r requirements.txt && uvicorn login_server:app --host 0.0.0.0 --port 8000"]
+      
+  metrics-db:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - ./metrics_data:/data/db
+    ports:
+      - "27017:27017"
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mongo-rs-init:
+    image: mongo:7
+    depends_on:
+      metrics-db:
+        condition: service_healthy
+    entrypoint: >
+      bash -lc "
+      mongosh --host metrics-db:27017 --quiet --eval '
+        try {
+          rs.status().ok
+        } catch (e) {
+          rs.initiate({_id:\"rs0\", members:[{_id:0, host:\"metrics-db:27017\"}]})
+        }
+      ';
+      "
+    restart: "no"
+
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    ports: ["5432:5432"]
+    volumes:
+      - ./pg_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  watcher:
+    build: .            # assumes Dockerfile with python + your code (watch_changes.py, mongodb_to_sql.py, metrics_reader.py)
+    depends_on:
+      mongo-rs-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_started
+    environment:
+      - MONGO_URI=mongodb://metrics-db:27017/?replicaSet=rs0
+      - METRICS_DB_NAME=metricsdb
+      - METRICS_COLLECTION=metrics
+      - PG_DSN=postgresql://postgres:postgres@postgres:5432/postgres
+      - PROCESSOR_NAME=kv_exporter
+    command: ["python","watch_changes.py"]
+    restart: unless-stopped
