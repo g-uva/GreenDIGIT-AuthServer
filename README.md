@@ -24,7 +24,7 @@ This service provides a secure API for collecting and aggregating CIM metrics fr
 #### Login & Content submission
 Below you can find a simple example of a `curl` script to submit the metrics. You use any platform for this effect, as long as the HTTP request is valid.
 ```sh
-curl -X POST http://localhost:8000/submit \
+curl -X POST https://mc-a4.lab.uvalight.net/gd-cim-api/submit \
   -H "Authorization: Bearer <TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"cpu_watts": 11.2, "mem_bytes": 734003200}'
@@ -33,7 +33,7 @@ curl -X POST http://localhost:8000/submit \
 #### List metrics
 Below you can find another `curl` script in order to list the metrics, if needed.
 ```sh
-curl -X GET -H "Authorization: Bearer <TOKEN>" http://localhost:8000/metrics/me
+curl -X GET -H "Authorization: Bearer <TOKEN>" https://mc-a4.lab.uvalight.net/gd-cim-api/metrics/me
 ```
 
 To check the FastAPI documentation, please visit: [mc-a4.lab.uvalight.net/gd-cim-api/docs](https://mc-a4.lab.uvalight.net/gd-cim-api/docs).
@@ -67,7 +67,7 @@ We use [FastAPI](https://fastapi.tiangolo.com/)—a simple Python RESTful API se
 - **`POST /submit`**  
   Accepts a single JSON object containing metrics. Requires a valid Bearer token in the `Authorization` header. The submitted metrics are validated and stored.
 ```bash
-curl -X POST $URL/gd-cim-api/submit \
+curl -X POST https://mc-a4.lab.uvalight.net/gd-cim-api/submit \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
     -d '{"metric":"cpu.util","value":0.73,"ts":"2025-09-01T10:02:03Z","node":"compute-0"}'
@@ -76,7 +76,7 @@ curl -X POST $URL/gd-cim-api/submit \
 - **`POST /submit/batch`**  
   Accepts a JSON **array** of metric objects and writes them in bulk. Requires `Idempotency-Key` and `Batch-Seq` headers to allow safe retries without duplicate inserts.
 ```bash
-curl -X POST $URL/gd-cim-api/submit/batch \
+curl -X POST https://mc-a4.lab.uvalight.net/gd-cim-api/submit/batch \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: $(uuidgen)" \
@@ -90,7 +90,7 @@ curl -X POST $URL/gd-cim-api/submit/batch \
 
 Example (plain NDJSON):
 ```bash
-curl -X POST $URL/gd-cim-api/submit/batch \
+curl -X POST https://mc-a4.lab.uvalight.net/gd-cim-api/submit/batch \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: $(uuidgen)" \
@@ -100,7 +100,7 @@ curl -X POST $URL/gd-cim-api/submit/batch \
 
 Example (gzipped NDJSON + Idempotency):
 ```bash
-curl -X POST $URL/gd-cim-api/submit/batch \
+curl -X POST https://mc-a4.lab.uvalight.net/gd-cim-api/submit/batch \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: $(uuidgen)" \
@@ -277,13 +277,13 @@ python submit_api/chunk_service/gen_input.py  # creates input.json and out_chunk
 # This command generates and automatically executes the submission.
 python submit_api/submit_api/chunk_service/json_to_ndjson_chunks.py input.json out_chunks \
   --gzip --exec-curl \
-  --endpoint http://localhost:8000/gd-cim-api/submit/ndjson \
+  --endpoint https://mc-a4.lab.uvalight.net/gd-cim-api/submit/ndjson \
   --bearer "$TOKEN"
 ```
 
 #### G. Test with batch
 ```bash
-curl -sS -X POST "$URL/gd-cim-api/submit/batch" \
+curl -sS -X POST "https://mc-a4.lab.uvalight.net/gd-cim-api/submit/batch" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: $(uuidgen)" \
