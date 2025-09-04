@@ -857,3 +857,7 @@ def ingest_status(
         "in_progress": in_prog,
         "missing": missing
     }
+    
+@app.get("/verify_token", tags=["Auth"], summary=["Validate GreenDIGIT JWT based token."])
+def verify_token_endpoint(email: str = Depends(verify_token)):
+    return { "valid": True, "sub": email }
