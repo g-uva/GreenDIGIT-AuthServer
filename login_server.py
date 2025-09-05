@@ -59,9 +59,9 @@ app = FastAPI(
 security = HTTPBearer()
 
 # Secret key for JWT
-SECRET_KEY = os.environ["JWT_TOKEN"]
+SECRET_KEY = os.environ["JWT_GEN_SEED_TOKEN"]
 if not SECRET_KEY:
-    raise RuntimeError("JWT_TOKEN not valid. You must generate a valid token on the server. :)")
+    raise RuntimeError("JWT_GEN_SEED_TOKEN not valid. You must generate a valid token on the server. :)")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_SECONDS = 86400 # 1 day
 JWT_ISSUER = os.environ.get("JWT_ISSUER", "greendigit-login-uva")
@@ -86,6 +86,10 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 class SubmitData(BaseModel):
     field1: str
     field2: int
+
+class GetTokenRequest(BaseModel):
+    email: str
+    password: str
 
 def get_db():
     db = SessionLocal()
@@ -861,3 +865,34 @@ def ingest_status(
 @app.get("/verify_token", tags=["Auth"], summary=["Validate GreenDIGIT JWT based token."])
 def verify_token_endpoint(email: str = Depends(verify_token)):
     return { "valid": True, "sub": email }
+
+
+@app.post(
+    "/get-token",
+    tags=["Auth"],
+    summary="Get JWT via JSON body (email and password).",
+    description="Returns JSON: {access_token, token_type, expires_in}."
+)
+def get_token(body: GetTokenRequest, db: Session = Depends(get_db)):
+    email_lower = body.email.strip().lower()
+    user = db.query(User).filter(User.email == email_lower).first()
+    if not user:
+        allowed_emails = load_allowed_emails()
+        if email_lower not in allowed_emails:
+            raise HTTPException(status_code=403, detail="Email not allowed")
+        hashed_password = pwd_context.hash(body.password)
+        user = User(email=email_lower, hashed_password=hashed_password)
+        db.add(user); db.commit(); db.refresh(user)
+    elif not pwd_context.verify(body.password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Incorrect password. \n If you have forgotten your password please contact the GreenDIGIT team: goncalo.ferreira@student.uva.nl.")
+
+    now = int(time.time())
+    token_data = {
+        "sub": user.email,
+        "iss": JWT_ISSUER,
+        "iat": now,
+        "nbf": now,
+        "exp": now + ACCESS_TOKEN_EXPIRE_SECONDS,
+    }
+    token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+    return {"access_token": token, "token_type": "bearer", "expires_in": ACCESS_TOKEN_EXPIRE_SECONDS}

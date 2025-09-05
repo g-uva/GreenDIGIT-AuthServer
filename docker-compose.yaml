@@ -165,6 +165,17 @@ services:
       - "8022:80"
     environment:
       - ENABLE_SSL=false
+  
+  ci-calc:
+    image: goncaloferreirauva/gd-ci-service
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - AUTH_VERIFY_URL=https://mc-a4.lab.uvalight.net/gd-cim-api/verify_token
+    command: uvicorn main:app --host 0.0.0.0 --port 8011
+    ports:
+      - "8011:8011"
 
   # Simple publisher that streams Mongo inserts to the webhook
   mongo-stream-publisher:
@@ -176,7 +187,9 @@ services:
       - MONGO_URI=mongodb://metrics-db:27017,metrics-db-2:27017,metrics-db-3:27017/?replicaSet=rs0
       - WATCH_DB=metricsdb
       - WATCH_COLL=metrics
-      - WEBHOOK_URL=http://cim-service-mock/
+      # - WEBHOOK_URL=http://cim-service-mock/
+      - WEBHOOK_URL=http://ci-calc:8011/ci
+      - WEBHOOK_BEARER={JWT_TOKEN}
     volumes:
       - ./publisher:/app:ro
     command: bash -lc "pip install --no-cache-dir pymongo requests && exec python -u /app/publisher.py"
@@ -224,18 +237,3 @@ services:
       - ./pg_data:/var/lib/postgresql/data
     restart: unless-stopped
 
-  # watcher:
-  #   build: .            # assumes Dockerfile with python + your code (watch_changes.py, mongodb_to_sql.py, metrics_reader.py)
-  #   depends_on:
-  #     mongo-rs-init:
-  #       condition: service_completed_successfully
-  #     postgres:
-  #       condition: service_started
-  #   environment:
-  #     - MONGO_URI=mongodb://metrics-db:27017/?replicaSet=rs0
-  #     - METRICS_DB_NAME=metricsdb
-  #     - METRICS_COLLECTION=metrics
-  #     - PG_DSN=postgresql://postgres:postgres@postgres:5432/postgres
-  #     - PROCESSOR_NAME=kv_exporter
-  #   command: ["python","watch_changes.py"]
-  #   restart: unless-stopped
