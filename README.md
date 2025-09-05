@@ -291,6 +291,23 @@ curl -sS -X POST "https://mc-a4.lab.uvalight.net/gd-cim-api/submit/batch" \
   --data-binary @input.json
 ```
 
+### Internal Mongo -> CIM -> CI -> SQL API Publisher CNR
+1. **Mongo -> CIM**: Test insert data (metrics JSON into MongoDB)
+```bash
+docker compose exec -T metrics-db mongosh --quiet <<'JS'
+const dbm = db.getSiblingDB("metricsdb");
+dbm.metrics.insertOne({
+  publisher_email: "235@example.org",
+  idempotency_key: new ObjectId().toHexString(),
+  seq: 35,
+  body: { metric: "cpu.util", node: "edge-02", ts: new Date(), val: 0.91 }
+});
+JS
+```
+Some helpers to restart services.
+> `docker compose logs -f mongo-stream-publisher cim-service-mock`
+> `docker compose up -d --force-recreate --no-deps cim-service-mock mongo-stream-publisher`
+
 ### Integration & Next Steps
 - [x] Separate DB from API, because I am guessing that if we rebuild using Docker, this will reset the DB @goncalo.
 - [ ] Step by step tutorial for: (1) run uvicorn locally, (2) running Dockerfile (server context), showing the endpoints (UI, OpenAPI, and others)

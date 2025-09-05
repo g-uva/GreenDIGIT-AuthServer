@@ -177,27 +177,9 @@ services:
       - WATCH_DB=metricsdb
       - WATCH_COLL=metrics
       - WEBHOOK_URL=http://cim-service-mock/
-    command: >
-      bash -lc "pip install --no-cache-dir pymongo requests &&
-      python - <<'PY'
-      import os, json, time, requests
-      from pymongo import MongoClient
-      uri = os.environ['MONGO_URI']
-      dbn = os.environ.get('WATCH_DB','metricsdb')
-      cn  = os.environ.get('WATCH_COLL','metrics')
-      webhook = os.environ['WEBHOOK_URL']
-      client = MongoClient(uri, appname='mongo-stream-publisher')
-      coll = client[dbn][cn]
-      print('📡 Publisher listening for inserts in %s.%s...' % (dbn, cn), flush=True)
-      with coll.watch([{'$match': {'operationType':'insert'}}], full_document='updateLookup') as stream:
-          for change in stream:
-              doc = change.get('fullDocument', {})
-              try:
-                  r = requests.post(webhook, json=doc, timeout=5)
-                  print('→ POST %s -> %s' % (webhook, r.status_code), flush=True)
-              except Exception as e:
-                  print('POST error:', e, flush=True)
-      PY"
+    volumes:
+      - ./publisher:/app:ro
+    command: bash -lc "pip install --no-cache-dir pymongo requests && exec python -u /app/publisher.py"
     restart: unless-stopped
 
   # Automated smoke-test to prove failover & integrity
