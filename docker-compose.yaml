@@ -1,13 +1,16 @@
 services:
   cim-fastapi:
-    container_name: cim-fastapi
-    build: .
+    image: goncaloferreirauva/cim-fastapi
     working_dir: /app
     ports:
       - "8000:8000"
     volumes:
       - .:/app
     command: ["sh", "-c", "pip install --no-cache-dir -r requirements.txt && uvicorn login_server:app --host 0.0.0.0 --port 8000"]
+    # Ensuring that it talks to all replicas, not just the main ;)
+    environment:
+      - MONGO_URI=mongodb://metrics-db:27017,metrics-db-2:27017,metrics-db-3:27017/?replicaSet=rs0
+
       
   metrics-db:
     image: mongo:7
@@ -23,21 +26,209 @@ services:
       timeout: 5s
       retries: 10
 
+  metrics-db-2:
+    image: mongo:7
+    restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - ./metrics_data_2:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand('ping').ok\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  metrics-db-3:
+    image: mongo:7
+    restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - ./metrics_data_3:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand('ping').ok\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # mongo-rs-init:
+  #   image: mongo:7
+  #   depends_on:
+  #     metrics-db:
+  #       condition: service_healthy
+  #   entrypoint: >
+  #     bash -lc "
+  #     mongosh --host metrics-db:27017 --quiet --eval '
+  #       try {
+  #         rs.status().ok
+  #       } catch (e) {
+  #         rs.initiate({_id:\"rs0\", members:[{_id:0, host:\"metrics-db:27017\"}]})
+  #       }
+  #     ';
+  #     "
+  #   restart: "no"
+
+  # Replica set initialiser (runs once then exits)
   mongo-rs-init:
     image: mongo:7
     depends_on:
-      metrics-db:
-        condition: service_healthy
-    entrypoint: >
-      bash -lc "
-      mongosh --host metrics-db:27017 --quiet --eval '
+      metrics-db:   { condition: service_healthy }
+      metrics-db-2: { condition: service_healthy }
+      metrics-db-3: { condition: service_healthy }
+    entrypoint:
+      - bash
+      - -lc
+      - |
+        set -e
+        echo "Waiting for all Mongo nodes..."
+        for h in metrics-db metrics-db-2 metrics-db-3; do
+          until mongosh --host "$$h:27017" --quiet --eval "db.adminCommand('ping').ok" >/dev/null 2>&1; do
+            echo "  waiting for $$h"; sleep 2;
+          done
+        done
+        echo "Initiating replica set if needed..."
+        mongosh --host metrics-db:27017 --quiet <<'JS'
         try {
-          rs.status().ok
+          if (!rs.status().ok) { throw new Error("not initiated"); }
+          print("Replica set already OK");
         } catch (e) {
-          rs.initiate({_id:\"rs0\", members:[{_id:0, host:\"metrics-db:27017\"}]})
+          rs.initiate({
+            _id: "rs0",
+            members: [
+              { _id: 0, host: "metrics-db:27017" },
+              { _id: 1, host: "metrics-db-2:27017" },
+              { _id: 2, host: "metrics-db-3:27017" }
+            ]
+          });
+          var ok = false; for (var i=0;i<60;i++){ 
+            try { if (rs.status().ok) { ok = true; break; } } catch(e){}
+            sleep(1000);
+          }
+          if (!ok) { throw new Error("replica set did not become OK in time"); }
+          print("Replica set initiated");
         }
-      ';
-      "
+        JS
+    restart: "no"
+
+  # Create de-dup indexes (runs once)
+  mongo-indexes:
+    image: mongo:7
+    depends_on:
+      mongo-rs-init: { condition: service_completed_successfully }
+    entrypoint:
+      - bash
+      - -lc
+      - |
+        set -e
+        echo "Creating unique indexes for de-dup..."
+        mongosh --host "metrics-db:27017" --quiet <<'JS'
+        const dbm = db.getSiblingDB("metricsdb");
+
+        // 1) Idempotency-style unique key (email + idempotency + seq)
+        try {
+          dbm.metrics.createIndex(
+            { publisher_email: 1, idempotency_key: 1, seq: 1 },
+            { unique: true, name: "uniq_email_idem_seq" }
+          );
+          print("Created uniq_email_idem_seq");
+        } catch (e) {
+          print("Index1:", e.message);
+        }
+
+        // 2) Metric tuple uniqueness (email + metric + node + ts)
+        //    Escape $exists as $$exists to avoid docker-compose interpolation.
+        try {
+          dbm.metrics.createIndex(
+            { publisher_email: 1, "body.metric": 1, "body.node": 1, "body.ts": 1 },
+            {
+              unique: true,
+              name: "uniq_email_metric_node_ts",
+              partialFilterExpression: {
+                "body.metric": { $$exists: true },
+                "body.node":   { $$exists: true },
+                "body.ts":     { $$exists: true }
+              }
+            }
+          );
+          print("Created uniq_email_metric_node_ts");
+        } catch (e) {
+          print("Index2:", e.message);
+        }
+        JS
+    restart: "no"
+
+
+  # Mock endpoint that logs every request (exposed on host :8022)
+  cim-service-mock:
+    image: ealen/echo-server:latest
+    restart: unless-stopped
+    ports:
+      - "8022:80"
+    environment:
+      - ENABLE_SSL=false
+
+  # Simple publisher that streams Mongo inserts to the webhook
+  mongo-stream-publisher:
+    image: python:3.12-slim
+    depends_on:
+      mongo-indexes: { condition: service_completed_successfully }
+      cim-service-mock:  { condition: service_started }
+    environment:
+      - MONGO_URI=mongodb://metrics-db:27017,metrics-db-2:27017,metrics-db-3:27017/?replicaSet=rs0
+      - WATCH_DB=metricsdb
+      - WATCH_COLL=metrics
+      - WEBHOOK_URL=http://cim-service-mock/
+    command: >
+      bash -lc "pip install --no-cache-dir pymongo requests &&
+      python - <<'PY'
+      import os, json, time, requests
+      from pymongo import MongoClient
+      uri = os.environ['MONGO_URI']
+      dbn = os.environ.get('WATCH_DB','metricsdb')
+      cn  = os.environ.get('WATCH_COLL','metrics')
+      webhook = os.environ['WEBHOOK_URL']
+      client = MongoClient(uri, appname='mongo-stream-publisher')
+      coll = client[dbn][cn]
+      print('📡 Publisher listening for inserts in %s.%s...' % (dbn, cn), flush=True)
+      with coll.watch([{'$match': {'operationType':'insert'}}], full_document='updateLookup') as stream:
+          for change in stream:
+              doc = change.get('fullDocument', {})
+              try:
+                  r = requests.post(webhook, json=doc, timeout=5)
+                  print('→ POST %s -> %s' % (webhook, r.status_code), flush=True)
+              except Exception as e:
+                  print('POST error:', e, flush=True)
+      PY"
+    restart: unless-stopped
+
+  # Automated smoke-test to prove failover & integrity
+  rs-smoke-test:
+    image: mongo:7
+    depends_on:
+      mongo-indexes: { condition: service_completed_successfully }
+    entrypoint:
+      - bash
+      - -lc
+      - |
+        set -e
+        URI="mongodb://metrics-db:27017,metrics-db-2:27017,metrics-db-3:27017/?replicaSet=rs0"
+        echo "Inserting a doc, stepping down primary, then reading back..."
+        mongosh "$$URI" --quiet <<'JS'
+        const dbm = db.getSiblingDB("smoketest");
+        dbm.dropDatabase();
+        dbm.t.insertOne({ _t: new Date(), note: "before stepdown" });
+        let isMaster = db.isMaster ? db.isMaster() : db.hello();
+        print("Primary is:", isMaster.primary);
+        try { rs.stepDown(10); } catch(e) { print("stepDown:", e.codeName || e.message); }
+        // wait for a new primary
+        let ok=false; for (let i=0;i<60;i++){ 
+          try { if ((db.isMaster?db.isMaster():db.hello()).ismaster){ ok=true; break; } } catch(e) {}
+          sleep(1000);
+        }
+        if (!ok) throw new Error("no primary elected in time");
+        dbm.t.insertOne({ _t: new Date(), note: "after stepdown" });
+        const c = dbm.t.countDocuments({});
+        print("Smoke test PASS. Documents:", c);
+        JS
     restart: "no"
 
   postgres:
@@ -51,18 +242,18 @@ services:
       - ./pg_data:/var/lib/postgresql/data
     restart: unless-stopped
 
-  watcher:
-    build: .            # assumes Dockerfile with python + your code (watch_changes.py, mongodb_to_sql.py, metrics_reader.py)
-    depends_on:
-      mongo-rs-init:
-        condition: service_completed_successfully
-      postgres:
-        condition: service_started
-    environment:
-      - MONGO_URI=mongodb://metrics-db:27017/?replicaSet=rs0
-      - METRICS_DB_NAME=metricsdb
-      - METRICS_COLLECTION=metrics
-      - PG_DSN=postgresql://postgres:postgres@postgres:5432/postgres
-      - PROCESSOR_NAME=kv_exporter
-    command: ["python","watch_changes.py"]
-    restart: unless-stopped
+  # watcher:
+  #   build: .            # assumes Dockerfile with python + your code (watch_changes.py, mongodb_to_sql.py, metrics_reader.py)
+  #   depends_on:
+  #     mongo-rs-init:
+  #       condition: service_completed_successfully
+  #     postgres:
+  #       condition: service_started
+  #   environment:
+  #     - MONGO_URI=mongodb://metrics-db:27017/?replicaSet=rs0
+  #     - METRICS_DB_NAME=metricsdb
+  #     - METRICS_COLLECTION=metrics
+  #     - PG_DSN=postgresql://postgres:postgres@postgres:5432/postgres
+  #     - PROCESSOR_NAME=kv_exporter
+  #   command: ["python","watch_changes.py"]
+  #   restart: unless-stopped

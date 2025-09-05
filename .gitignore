@@ -6,7 +6,7 @@ lib64
 include/
 pyvenv.cfg
 .env
-metrics_data
+metrics_data*
 users.db
 pg_data/
 out_dir/
