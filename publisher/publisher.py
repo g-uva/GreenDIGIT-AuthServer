@@ -95,6 +95,7 @@ while True:
                         print("Response body:", r.text[:400], flush=True)
                     elif RESULT_FORWARD_URL:
                         fr = session.post(RESULT_FORWARD_URL, data=r.text, headers=fwd_headers, timeout=15)
+                        print(f"Data: \n {r.text}")
                         print(f"→ FORWARD {RESULT_FORWARD_URL} -> {fr.status_code}", flush=True)
                 except Exception as e:
                     print("POST error:", e, flush=True)
