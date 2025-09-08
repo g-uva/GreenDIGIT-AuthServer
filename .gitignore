@@ -13,3 +13,5 @@ out_dir/
 input.json
 test_data/
 upload.log
+output/
+sites_data/

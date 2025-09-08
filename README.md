@@ -300,17 +300,18 @@ dbm.metrics.insertOne({
   publisher_email: "235@example.org",
   idempotency_key: new ObjectId().toHexString(),
   seq: 35,
-  body: { metric: "cpu.util", node: "edge-02", ts: new Date(), val: 0.91 }
+  body: { metric: "cpu.util", node: "100IT", ts: new Date(), val: 0.91 }
 });
 JS
 ```
 Some helpers to restart services.
 > `docker compose logs -f mongo-stream-publisher cim-service-mock`
+> `docker compose logs -f mongo-stream-publisher ci-calc`
 > `docker compose up -d --force-recreate --no-deps cim-service-mock mongo-stream-publisher`
 
-### Integration & Next Steps
+### Integration & Next Steps (Roadmap)
 - [x] Separate DB from API, because I am guessing that if we rebuild using Docker, this will reset the DB @goncalo.
-- [ ] Step by step tutorial for: (1) run uvicorn locally, (2) running Dockerfile (server context), showing the endpoints (UI, OpenAPI, and others)
+- [x] Step by step tutorial for: (1) run uvicorn locally, (2) running Dockerfile (server context), showing the endpoints (UI, OpenAPI, and others)
 - [x] Integrate in the server :point_right: mc-a4.lab.uvalight.net using a reverse-proxy NGINX.
 - [ ] Integrate `POST` service for CNR database—do this programmatically.
 - [ ] Deploy and connect CIM service (transformation).
