@@ -297,7 +297,7 @@ curl -sS -X POST "https://mc-a4.lab.uvalight.net/gd-cim-api/submit/batch" \
 docker compose exec -T metrics-db mongosh --quiet <<'JS'
 const dbm = db.getSiblingDB("metricsdb");
 dbm.metrics.insertOne({
-  publisher_email: "235@example.org",
+  publisher_email: "goncalo.ferreira@student.uva.nl",
   idempotency_key: new ObjectId().toHexString(),
   seq: 35,
   body: { metric: "cpu.util", node: "100IT", ts: new Date(), val: 0.91 }

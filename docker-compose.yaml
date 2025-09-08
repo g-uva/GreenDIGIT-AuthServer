@@ -4,12 +4,18 @@ services:
     working_dir: /app
     ports:
       - "8000:8000"
+    expose: ["8000"]
     volumes:
       - .:/app
     command: ["sh", "-c", "pip install --no-cache-dir -r requirements.txt && uvicorn login_server:app --host 0.0.0.0 --port 8000"]
     # Ensuring that it talks to all replicas, not just the main ;)
     environment:
       - MONGO_URI=mongodb://metrics-db:27017,metrics-db-2:27017,metrics-db-3:27017/?replicaSet=rs0
+    # healthcheck:
+    #   test: ["CMD", "curl", "-sf", "https://mc-a4.lab.uvalight.net/gd-cim-api/docs"]
+    #   interval: 10s
+    #   timeout: 5s
+    #   retries: 10
 
       
   metrics-db:
@@ -188,6 +194,7 @@ services:
     depends_on:
       mongo-indexes: { condition: service_completed_successfully }
       ci-calc:  { condition: service_started }
+      cim-fastapi: { condition: service_started }
     env_file:
       - .env
     environment:
@@ -199,7 +206,7 @@ services:
       - WEBHOOK_URL=http://ci-calc:8011/ci
       - SITES_URL=http://ci-calc:8011/load-sites
       # - NODE_TO_SITE_FILE=/data/node_to_site.json
-      - RESULT_FORWARD_URL=http://cim-fastapi:8000/gd-cim-api/ci-result
+      - RESULT_FORWARD_URL=https://mc-a4.lab.uvalight.net/gd-cim-api/cnr-endpoint
     volumes:
       - ./publisher/publisher.py:/app/publisher.py:ro
     command: bash -lc "pip install --no-cache-dir pymongo requests python-dateutil && exec python -u /app/publisher.py"
