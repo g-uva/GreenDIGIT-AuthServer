@@ -4,6 +4,16 @@
 
 This service provides a secure API for collecting and aggregating CIM metrics from authorised partners. Authentication is managed via a list of allowed emails and token-based access. The service is built with FastAPI and runs on a Uvicorn server, designed for easy integration and future extensibility.
 
+*This work is funded from the European Union’s Horizon Europe research and innovation programme through the [GreenDIGIT project](https://greendigit-project.eu/), under the grant agreement No. [101131207](https://cordis.europa.eu/project/id/101131207)*.
+
+<!-- ![GreenDIGIT Logo](auth_metrics_server/static/cropped-GD_logo.png)
+![EU Logo](auth_metrics_server/static/EN-Funded-by-the-EU-POS-2.png) -->
+
+<div style="display:flex;align-items:center;width:100%;">
+  <img src="auth_metrics_server/static/cropped-GD_logo.png" alt="GreenDIGIT Logo" width="110px" style="margin-right:100px">
+  <img src="auth_metrics_server/static/EN-Funded-by-the-EU-POS-2.png" alt="EU Logo" width="250px">
+</div>
+
 ### Data Storage
 - **Metrics Storage:**  
   Submitted metrics will be transformed and stored in a SQL-compatible format (PostgreSQL) and organised into appropriate namespaces for future querying and analysis.
