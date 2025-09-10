@@ -82,7 +82,7 @@ curl -X POST https://mc-a4.lab.uvalight.net/gd-cim-api/submit \
     -d '{"metric":"cpu.util","value":0.73,"ts":"2025-09-01T10:02:03Z","node":"compute-0"}'
 ```
 
-- **`POST /submit/batch`**  
+<!-- - **`POST /submit/batch`**  
   Accepts a JSON **array** of metric objects and writes them in bulk. Requires `Idempotency-Key` and `Batch-Seq` headers to allow safe retries without duplicate inserts.
 ```bash
 curl -X POST https://mc-a4.lab.uvalight.net/gd-cim-api/submit/batch \
@@ -117,14 +117,14 @@ curl -X POST https://mc-a4.lab.uvalight.net/gd-cim-api/submit/batch \
   --data-binary @input.json
 ```
 
----
+--- -->
 
 **Payload size limits (important)**  
 - MongoDB restricts a **single document to 16 MB**.  
 - HTTP itself has no fixed size limit, but most servers and proxies enforce practical limits (often **1–100 MB per request**).  
 - For **large datasets (hundreds of MBs to GBs)**, always split into chunks (NDJSON streaming or JSON array batches).  
 
-### JSON to NDJSON Chunks Helper
+<!-- ### JSON to NDJSON Chunks Helper
 In order to help convert your JSON into digestable chunks, we've developed a helper that you can use to split your JSON file `submit_api/chunk_service/*.py`.
 
 Basic conversion (auto-detects input format, writes chunks + manifest):
@@ -344,7 +344,7 @@ docker compose run --rm mongo-indexes
 # Verify indexes exist
 docker compose exec metrics-db mongosh --quiet --eval \
 'db.getSiblingDB("metricsdb").metrics.getIndexes().map(i=>i.name)'
-```
+``` -->
 
 ### Integration & Next Steps (Roadmap)
 - [x] Separate DB from API, because I am guessing that if we rebuild using Docker, this will reset the DB @goncalo.

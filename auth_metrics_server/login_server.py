@@ -36,19 +36,33 @@ tags_metadata = [
     },
 ]
 
+
 app = FastAPI(
     title="GreenDIGIT WP6.2 CIM Metrics API",
-    description=(
-        "API for publishing metrics.\n\n"
-        "**Authentication**\n\n"
-        "- Obtain a token via **POST /login** using form fields `email` and `password`. Your email must be registered beforehand. In case this does not work (wrong password/unknown), please contact goncalo.ferreira@student.uva.nl or a.tahir2@uva.nl.\n"
-        "- Then include `Authorization: Bearer <token>` on all protected requests.\n"
-        "- Tokens expire after 1 day—in which case you must simply repeat the process again.\n"
-    ),
     version="1.0.0",
     openapi_tags=tags_metadata,
     swagger_ui_parameters={"persistAuthorization": True},
     root_path="/gd-cim-api"
+)
+prefix = app.root_path or ""
+app.description = (
+    "API for publishing metrics for GreenDIGIT WP6 partners (IFcA, DIRAC, and UTH).\n\n"
+    "**Authentication**\n\n"
+    "- Obtain a token via **POST /login** using form fields `email` and `password`. "
+    "Your email must be registered beforehand. If it fails (wrong password/unknown), "
+    "please contact goncalo.ferreira@student.uva.nl or a.tahir2@uva.nl.\n"
+    "- Then include `Authorization: Bearer <token>` on all protected requests.\n"
+    "- Tokens expire after 1 day — regenerate when needed.\n\n"
+    "### Funding and acknowledgements\n"
+    "This work is funded from the European Union’s Horizon Europe research and innovation programme "
+    "through the [GreenDIGIT project](https://greendigit-project.eu/), under the grant agreement "
+    "No. [101131207](https://cordis.europa.eu/project/id/101131207).\n\n"
+    # GitHub badge (Markdown)
+    "[![GitHub Repo](https://img.shields.io/badge/github-GreenDIGIT--AuthServer-blue?logo=github)]"
+    "(https://github.com/g-uva/GreenDIGIT-AuthServer)\n\n"
+    # Logos (HTML so we can size them)
+    f'<p><img src="{prefix}/static/EN-Funded-by-the-EU-POS-2.png" alt="Funded by the EU" width="160"> '
+    f'<img src="{prefix}/static/cropped-GD_logo.png" alt="GreenDIGIT" width="120"></p>'
 )
 
 STATIC_DIR = Path(__file__).parent / "static"
