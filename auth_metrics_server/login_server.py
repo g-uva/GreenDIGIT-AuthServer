@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request, Body, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordRequestForm
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Any
 from passlib.context import CryptContext
@@ -19,15 +20,7 @@ from datetime import datetime, timezone
 import traceback, uuid
 
 
-try:
-    _db["ingest_sessions"].create_index(
-        [("publisher_email", 1), ("idempotency_key", 1), ("seq", 1)],
-        unique=True,
-        name="idem_publisher_key_seq_unique"
-    )
-except Exception as _:
-    # Non-fatal: index might already exist or Mongo not ready at import time
-    pass
+
 
 load_dotenv()  # loads from .env in the current folder by default
 
@@ -56,6 +49,7 @@ app = FastAPI(
     swagger_ui_parameters={"persistAuthorization": True},
     root_path="/gd-cim-api"
 )
+app.mount("/static", StaticFiles(directory="static", name="static"))
 security = HTTPBearer()
 
 # Secret key for JWT
@@ -401,7 +395,9 @@ def token_ui():
                     border-radius: 12px;
                     box-shadow: 0 20px 40px rgba(0,0,0,0.1);
                     width: 100%;
-                    max-width: 400px;
+                    max-width: 500px;
+                    display: flex;
+                    flex-direction: column;
                 }
                 
                 h2 {
@@ -468,6 +464,7 @@ def token_ui():
                     padding: 20px;
                     border-radius: 8px;
                     border-left: 4px solid #17a2b8;
+                    margin-bottom: 20px;
                 }
                 
                 .contact p {
@@ -479,6 +476,7 @@ def token_ui():
                 .contact ul {
                     list-style: none;
                     margin: 0;
+                    padding: 0;
                 }
                 
                 .contact li {
@@ -489,6 +487,37 @@ def token_ui():
                 
                 .contact li:last-child {
                     margin-bottom: 0;
+                }
+
+                /* Footer style */
+                .footer {
+                    font-size: 12px;
+                    color: #555;
+                    text-align: center;
+                    margin-top: 30px;
+                    line-height: 1.5;
+                }
+
+                .footer a {
+                    color: #667eea;
+                    text-decoration: none;
+                }
+
+                .footer a:hover {
+                    text-decoration: underline;
+                }
+
+                .footer-logos {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    gap: 20px;
+                    margin-top: 15px;
+                }
+
+                .footer-logos img {
+                    max-height: 50px;
+                    object-fit: contain;
                 }
             </style>
         </head>
@@ -513,10 +542,22 @@ def token_ui():
                         <li>a.tahir2@uva.nl</li>
                     </ul>
                 </div>
+
+                <div class="footer">
+                    This work is funded from the European Union’s Horizon Europe research and innovation programme through the 
+                    <a href="https://greendigit-project.eu/" target="_blank">GreenDIGIT project</a>, under the grant agreement No. 
+                    <a href="https://cordis.europa.eu/project/id/101131207" target="_blank">101131207</a>.
+                    
+                    <div class="footer-logos">
+                        <img src="/static/cropped-GD_logo.png" alt="GreenDIGIT logo">
+                        <img src="/static/EN-Funded-by-the-EU-POS-2.png" alt="Funded by the EU">
+                    </div>
+                </div>
             </div>
         </body>
         </html>
     """
+
 
 @app.post(
     "/submit",
@@ -602,265 +643,265 @@ def reset_password(
     db.commit()
     return {"msg": "Password updated successfully"}
 
-@app.post(
-    "/submit/ndjson",
-    tags=["Metrics"],
-    summary="Stream NDJSON (optionally gzip) with safe bulk flush",
-    description="Ingests newline-delimited JSON via streaming; supports gzip; idempotent with Idempotency-Key + X-Batch-Seq.",
-    responses={
-        200: {"description": "OK; returns count of inserted lines"},
-        400: {"description": "Bad headers or body (content-type, JSON, UTF-8, gzip)"},
-        401: {"description": "Missing/invalid Bearer token"},
-        500: {"description": "Server/database error (rolled back for safe retry)"},
-    },
-)
-async def submit_ndjson(request: Request, publisher_email: str = Depends(verify_token)):
-    # Basic header checks (helpful when tools mis-set content-type)
-    ctype = (request.headers.get("Content-Type") or "").split(";")[0].strip().lower()
-    if ctype != "application/x-ndjson":
-        raise HTTPException(status_code=400, detail=f"Content-Type must be application/x-ndjson, got {ctype or '<missing>'}")
+# @app.post(
+#     "/submit/ndjson",
+#     tags=["Metrics"],
+#     summary="Stream NDJSON (optionally gzip) with safe bulk flush",
+#     description="Ingests newline-delimited JSON via streaming; supports gzip; idempotent with Idempotency-Key + X-Batch-Seq.",
+#     responses={
+#         200: {"description": "OK; returns count of inserted lines"},
+#         400: {"description": "Bad headers or body (content-type, JSON, UTF-8, gzip)"},
+#         401: {"description": "Missing/invalid Bearer token"},
+#         500: {"description": "Server/database error (rolled back for safe retry)"},
+#     },
+# )
+# async def submit_ndjson(request: Request, publisher_email: str = Depends(verify_token)):
+#     # Basic header checks (helpful when tools mis-set content-type)
+#     ctype = (request.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+#     if ctype != "application/x-ndjson":
+#         raise HTTPException(status_code=400, detail=f"Content-Type must be application/x-ndjson, got {ctype or '<missing>'}")
 
-    content_encoding = (request.headers.get("Content-Encoding") or "").lower()
-    try:
-        decoder = zlib.decompressobj(16 + zlib.MAX_WBITS) if content_encoding == "gzip" else None
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid gzip stream: {e}")
+#     content_encoding = (request.headers.get("Content-Encoding") or "").lower()
+#     try:
+#         decoder = zlib.decompressobj(16 + zlib.MAX_WBITS) if content_encoding == "gzip" else None
+#     except Exception as e:
+#         raise HTTPException(status_code=400, detail=f"Invalid gzip stream: {e}")
 
-    # ---- Idempotency (only if both headers present) ----
-    idem = request.headers.get("Idempotency-Key")
-    seq_hdr = request.headers.get("X-Batch-Seq")
-    seq_int, sess = None, None
-    if idem is not None and seq_hdr is not None:
-        try:
-            seq_int = int(seq_hdr)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="X-Batch-Seq must be an integer")
+#     # ---- Idempotency (only if both headers present) ----
+#     idem = request.headers.get("Idempotency-Key")
+#     seq_hdr = request.headers.get("X-Batch-Seq")
+#     seq_int, sess = None, None
+#     if idem is not None and seq_hdr is not None:
+#         try:
+#             seq_int = int(seq_hdr)
+#         except ValueError:
+#             raise HTTPException(status_code=400, detail="X-Batch-Seq must be an integer")
 
-        sess = _db["ingest_sessions"]
-        try:
-            sess.insert_one({
-                "publisher_email": publisher_email,
-                "idempotency_key": idem,
-                "seq": seq_int,
-                "status": "in_progress",
-            })
-            # fresh session => proceed to stream & insert
-        except Exception as e:
-            if "E11000" in str(e):
-                # Already have a session row for this (pub, key, seq)
-                existing = sess.find_one(
-                    {"publisher_email": publisher_email, "idempotency_key": idem, "seq": seq_int},
-                    {"status": 1, "_id": 0}
-                )
-                if existing and existing.get("status") == "done":
-                    # It really was finished earlier → just report duplicate
-                    return {"ok": True, "inserted": 0, "duplicate": True, "next_expected_seq": seq_int + 1}
-                # else: it was "in_progress" (crashed earlier) → **resume**:
-                # do NOT return; fall through and actually re-run the streaming ingest below,
-                # then mark status="done" at the end.
-            else:
-                raise
+#         sess = _db["ingest_sessions"]
+#         try:
+#             sess.insert_one({
+#                 "publisher_email": publisher_email,
+#                 "idempotency_key": idem,
+#                 "seq": seq_int,
+#                 "status": "in_progress",
+#             })
+#             # fresh session => proceed to stream & insert
+#         except Exception as e:
+#             if "E11000" in str(e):
+#                 # Already have a session row for this (pub, key, seq)
+#                 existing = sess.find_one(
+#                     {"publisher_email": publisher_email, "idempotency_key": idem, "seq": seq_int},
+#                     {"status": 1, "_id": 0}
+#                 )
+#                 if existing and existing.get("status") == "done":
+#                     # It really was finished earlier → just report duplicate
+#                     return {"ok": True, "inserted": 0, "duplicate": True, "next_expected_seq": seq_int + 1}
+#                 # else: it was "in_progress" (crashed earlier) → **resume**:
+#                 # do NOT return; fall through and actually re-run the streaming ingest below,
+#                 # then mark status="done" at the end.
+#             else:
+#                 raise
 
-    # ---- Streaming ingest with bulk flush ----
-    col = _db.get_collection(_col.name, write_concern=WriteConcern(w="majority", j=True))
-    buf = b""
-    ops, inserted, line_no = [], 0, 0
+#     # ---- Streaming ingest with bulk flush ----
+#     col = _db.get_collection(_col.name, write_concern=WriteConcern(w="majority", j=True))
+#     buf = b""
+#     ops, inserted, line_no = [], 0, 0
 
-    def _append_line(line_bytes: bytes):
-        nonlocal ops, inserted, line_no
-        line_no += 1
-        if not line_bytes.strip():
-            return
-        try:
-            body = json.loads(line_bytes)
-        except UnicodeDecodeError as e:
-            raise HTTPException(status_code=400, detail=f"Invalid UTF-8 at line {line_no}: {e}")
-        except json.JSONDecodeError as e:
-            raise HTTPException(status_code=400, detail=f"Invalid JSON at line {line_no}: {e.msg}")
-        ops.append(InsertOne({
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "publisher_email": publisher_email,
-            "body": body
-        }))
-        if len(ops) >= BULK_MAX_OPS:
-            col.bulk_write(ops, ordered=False, bypass_document_validation=True)
-            inserted += len(ops)
-            ops = []
+#     def _append_line(line_bytes: bytes):
+#         nonlocal ops, inserted, line_no
+#         line_no += 1
+#         if not line_bytes.strip():
+#             return
+#         try:
+#             body = json.loads(line_bytes)
+#         except UnicodeDecodeError as e:
+#             raise HTTPException(status_code=400, detail=f"Invalid UTF-8 at line {line_no}: {e}")
+#         except json.JSONDecodeError as e:
+#             raise HTTPException(status_code=400, detail=f"Invalid JSON at line {line_no}: {e.msg}")
+#         ops.append(InsertOne({
+#             "timestamp": datetime.now(timezone.utc).isoformat(),
+#             "publisher_email": publisher_email,
+#             "body": body
+#         }))
+#         if len(ops) >= BULK_MAX_OPS:
+#             col.bulk_write(ops, ordered=False, bypass_document_validation=True)
+#             inserted += len(ops)
+#             ops = []
 
-    try:
-        async for chunk in request.stream():
-            if decoder:
-                chunk = decoder.decompress(chunk)
-            buf += chunk
-            *lines, buf = buf.split(b"\n")
-            for line in lines:
-                _append_line(line)
+#     try:
+#         async for chunk in request.stream():
+#             if decoder:
+#                 chunk = decoder.decompress(chunk)
+#             buf += chunk
+#             *lines, buf = buf.split(b"\n")
+#             for line in lines:
+#                 _append_line(line)
 
-        # flush any gzip tail and process the remainder
-        if decoder:
-            tail = decoder.flush()
-            if tail:
-                buf += tail
-        if buf:
-            for line in filter(None, buf.split(b"\n")):
-                _append_line(line)
+#         # flush any gzip tail and process the remainder
+#         if decoder:
+#             tail = decoder.flush()
+#             if tail:
+#                 buf += tail
+#         if buf:
+#             for line in filter(None, buf.split(b"\n")):
+#                 _append_line(line)
 
-        if ops:
-            col.bulk_write(ops, ordered=False, bypass_document_validation=True)
-            inserted += len(ops)
+#         if ops:
+#             col.bulk_write(ops, ordered=False, bypass_document_validation=True)
+#             inserted += len(ops)
 
-    except PyMongoError as e:
-        # rollback idempotency marker so client can retry
-        if ((sess is not None) is not None) and (seq_int is not None):
-            sess.delete_one({"publisher_email": publisher_email, "idempotency_key": idem, "seq": seq_int})
-        raise HTTPException(status_code=500, detail=f"Mongo bulk_write error after {inserted} inserts (line {line_no}): {e}")
-    except HTTPException:
-        # re-raise structured 4xx errors from parsing
-        if ((sess is not None) is not None) and (seq_int is not None):
-            sess.delete_one({"publisher_email": publisher_email, "idempotency_key": idem, "seq": seq_int})
-        raise
-    except Exception as e:
-        # catch-all: always return JSON (not a blank 500)
-        if ((sess is not None) is not None) and (seq_int is not None):
-            sess.delete_one({"publisher_email": publisher_email, "idempotency_key": idem, "seq": seq_int})
-        raise HTTPException(status_code=500, detail=f"Unhandled error at line {line_no}: {type(e).__name__}: {e}")
+#     except PyMongoError as e:
+#         # rollback idempotency marker so client can retry
+#         if ((sess is not None) is not None) and (seq_int is not None):
+#             sess.delete_one({"publisher_email": publisher_email, "idempotency_key": idem, "seq": seq_int})
+#         raise HTTPException(status_code=500, detail=f"Mongo bulk_write error after {inserted} inserts (line {line_no}): {e}")
+#     except HTTPException:
+#         # re-raise structured 4xx errors from parsing
+#         if ((sess is not None) is not None) and (seq_int is not None):
+#             sess.delete_one({"publisher_email": publisher_email, "idempotency_key": idem, "seq": seq_int})
+#         raise
+#     except Exception as e:
+#         # catch-all: always return JSON (not a blank 500)
+#         if ((sess is not None) is not None) and (seq_int is not None):
+#             sess.delete_one({"publisher_email": publisher_email, "idempotency_key": idem, "seq": seq_int})
+#         raise HTTPException(status_code=500, detail=f"Unhandled error at line {line_no}: {type(e).__name__}: {e}")
 
-    # ---- Finalise idempotency session ----
-    if ((sess is not None) is not None) and (seq_int is not None):
-        sess.update_one(
-            {"publisher_email": publisher_email, "idempotency_key": idem, "seq": seq_int},
-            {"$set": {"status": "done", "inserted": inserted, "ts_done": datetime.now(timezone.utc).isoformat()}}
-        )
-        return {"ok": True, "inserted": inserted, "next_expected_seq": seq_int + 1}
+#     # ---- Finalise idempotency session ----
+#     if ((sess is not None) is not None) and (seq_int is not None):
+#         sess.update_one(
+#             {"publisher_email": publisher_email, "idempotency_key": idem, "seq": seq_int},
+#             {"$set": {"status": "done", "inserted": inserted, "ts_done": datetime.now(timezone.utc).isoformat()}}
+#         )
+#         return {"ok": True, "inserted": inserted, "next_expected_seq": seq_int + 1}
 
-    return {"ok": True, "inserted": inserted}
+#     return {"ok": True, "inserted": inserted}
 
 
-@app.post(
-    "/submit/batch",
-    summary="Bulk insert (JSON array) with idempotency",
-    description=(
-        "Accepts a **JSON array** of metric objects and performs a single Mongo bulk write.\n\n"
-        "Headers:\n"
-        "- **Authorization**: `Bearer <token>` (required)\n"
-        "- **Content-Type**: `application/json` (required)\n"
-        "- **Idempotency-Key**: UUID for the **array batch** (required)\n"
-        "- **X-Batch-Seq**: integer sequence for this batch (required)\n\n"
-        "Safeguards:\n"
-        "- Writes use **w=majority, j=true** for durability.\n"
-        "- Unique key on `(publisher_email, idempotency_key, seq)` prevents duplicates; safe to retry the same request.\n\n"
-        "Request example:\n"
-        "```http\n"
-        "POST /gd-cim-api/submit/batch\n"
-        "Authorization: Bearer <jwt>\n"
-        "Content-Type: application/json\n"
-        "Idempotency-Key: 11111111-1111-1111-1111-111111111111\n"
-        "X-Batch-Seq: 0\n"
-        "\n"
-        "[\n"
-        "  {\"metric\":\"cpu.util\",\"value\":0.73,\"ts\":\"2025-09-01T10:02:03Z\",\"node\":\"compute-0\"},\n"
-        "  {\"metric\":\"mem.used\",\"value\":2154,\"ts\":\"2025-09-01T10:02:04Z\",\"node\":\"compute-0\"}\n"
-        "]\n"
-        "```\n"
-        "Shell example:\n"
-        "```bash\n"
-        "curl -X POST $URL/gd-cim-api/submit/batch \\\n"
-        "  -H \"Authorization: Bearer $TOKEN\" \\\n"
-        "  -H \"Content-Type: application/json\" \\\n"
-        "  -H \"Idempotency-Key: $IDEM\" \\\n"
-        "  -H \"X-Batch-Seq: 0\" \\\n"
-        "  --data-binary @input.json\n"
-        "```\n"
-    ),
-    responses={
-        200: {"description": "OK; returns number inserted and next seq"},
-        400: {"description": "Missing/invalid headers"},
-        401: {"description": "Missing/invalid Bearer token"},
-        422: {"description": "Body was not a JSON array"},
-        500: {"description": "Database error"},
-    },
-)
-async def submit_batch(
-    request: Request,
-    body = Body(...),  # must be a JSON array
-    publisher_email: str = Depends(verify_token),
-):
-    # Idempotency headers
-    idem = request.headers.get("Idempotency-Key")
-    seq  = request.headers.get("X-Batch-Seq")
+# @app.post(
+#     "/submit/batch",
+#     summary="Bulk insert (JSON array) with idempotency",
+#     description=(
+#         "Accepts a **JSON array** of metric objects and performs a single Mongo bulk write.\n\n"
+#         "Headers:\n"
+#         "- **Authorization**: `Bearer <token>` (required)\n"
+#         "- **Content-Type**: `application/json` (required)\n"
+#         "- **Idempotency-Key**: UUID for the **array batch** (required)\n"
+#         "- **X-Batch-Seq**: integer sequence for this batch (required)\n\n"
+#         "Safeguards:\n"
+#         "- Writes use **w=majority, j=true** for durability.\n"
+#         "- Unique key on `(publisher_email, idempotency_key, seq)` prevents duplicates; safe to retry the same request.\n\n"
+#         "Request example:\n"
+#         "```http\n"
+#         "POST /gd-cim-api/submit/batch\n"
+#         "Authorization: Bearer <jwt>\n"
+#         "Content-Type: application/json\n"
+#         "Idempotency-Key: 11111111-1111-1111-1111-111111111111\n"
+#         "X-Batch-Seq: 0\n"
+#         "\n"
+#         "[\n"
+#         "  {\"metric\":\"cpu.util\",\"value\":0.73,\"ts\":\"2025-09-01T10:02:03Z\",\"node\":\"compute-0\"},\n"
+#         "  {\"metric\":\"mem.used\",\"value\":2154,\"ts\":\"2025-09-01T10:02:04Z\",\"node\":\"compute-0\"}\n"
+#         "]\n"
+#         "```\n"
+#         "Shell example:\n"
+#         "```bash\n"
+#         "curl -X POST $URL/gd-cim-api/submit/batch \\\n"
+#         "  -H \"Authorization: Bearer $TOKEN\" \\\n"
+#         "  -H \"Content-Type: application/json\" \\\n"
+#         "  -H \"Idempotency-Key: $IDEM\" \\\n"
+#         "  -H \"X-Batch-Seq: 0\" \\\n"
+#         "  --data-binary @input.json\n"
+#         "```\n"
+#     ),
+#     responses={
+#         200: {"description": "OK; returns number inserted and next seq"},
+#         400: {"description": "Missing/invalid headers"},
+#         401: {"description": "Missing/invalid Bearer token"},
+#         422: {"description": "Body was not a JSON array"},
+#         500: {"description": "Database error"},
+#     },
+# )
+# async def submit_batch(
+#     request: Request,
+#     body = Body(...),  # must be a JSON array
+#     publisher_email: str = Depends(verify_token),
+# ):
+#     # Idempotency headers
+#     idem = request.headers.get("Idempotency-Key")
+#     seq  = request.headers.get("X-Batch-Seq")
     
-    if not idem or seq is None:
-        raise HTTPException(status_code=400, detail="Missing Idempotency-Key or X-Batch-Seq")
+#     if not idem or seq is None:
+#         raise HTTPException(status_code=400, detail="Missing Idempotency-Key or X-Batch-Seq")
 
-    try:
-        seq_int = int(seq)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="X-Batch-Seq must be an integer")
+#     try:
+#         seq_int = int(seq)
+#     except ValueError:
+#         raise HTTPException(status_code=400, detail="X-Batch-Seq must be an integer")
 
-    if not isinstance(body, list):
-        raise HTTPException(status_code=422, detail="Body must be a JSON array of objects")
+#     if not isinstance(body, list):
+#         raise HTTPException(status_code=422, detail="Body must be a JSON array of objects")
 
-    # 1) try to register this (publisher,idempotency_key,seq)
-    sess = _db["ingest_sessions"] if (idem and seq is not None) else None
-    if (sess is not None) is not None:
-        seq = int(seq)
-        try:
-            sess.insert_one({
-                "publisher_email": publisher_email,
-                "idempotency_key": idem,
-                "seq": seq_int,
-                "status": "in_progress",
-            })
-        except Exception as e:
-            if "E11000" in str(e):
-                return {"ok": True, "inserted": 0, "duplicate": True, "next_expected_seq": seq_int + 1}
-            raise
+#     # 1) try to register this (publisher,idempotency_key,seq)
+#     sess = _db["ingest_sessions"] if (idem and seq is not None) else None
+#     if (sess is not None) is not None:
+#         seq = int(seq)
+#         try:
+#             sess.insert_one({
+#                 "publisher_email": publisher_email,
+#                 "idempotency_key": idem,
+#                 "seq": seq_int,
+#                 "status": "in_progress",
+#             })
+#         except Exception as e:
+#             if "E11000" in str(e):
+#                 return {"ok": True, "inserted": 0, "duplicate": True, "next_expected_seq": seq_int + 1}
+#             raise
 
-    # 2) bulk insert
-    r = store_metrics_bulk(publisher_email, body)
+#     # 2) bulk insert
+#     r = store_metrics_bulk(publisher_email, body)
 
-    # 3) finalise
-    if r.get("ok"):
-        sess.update_one(
-            {"publisher_email": publisher_email, "idempotency_key": idem, "seq": seq_int},
-            {"$set": {"status": "done", "inserted": r["inserted"]}}
-        )
-        return {"ok": True, "inserted": r["inserted"], "next_expected_seq": seq_int + 1}
-    else:
-        # roll back the session marker so you can retry
-        sess.delete_one({"publisher_email": publisher_email, "idempotency_key": idem, "seq": seq_int})
-        raise HTTPException(status_code=500, detail=r.get("error", "bulk insert failed"))
+#     # 3) finalise
+#     if r.get("ok"):
+#         sess.update_one(
+#             {"publisher_email": publisher_email, "idempotency_key": idem, "seq": seq_int},
+#             {"$set": {"status": "done", "inserted": r["inserted"]}}
+#         )
+#         return {"ok": True, "inserted": r["inserted"], "next_expected_seq": seq_int + 1}
+#     else:
+#         # roll back the session marker so you can retry
+#         sess.delete_one({"publisher_email": publisher_email, "idempotency_key": idem, "seq": seq_int})
+#         raise HTTPException(status_code=500, detail=r.get("error", "bulk insert failed"))
 
 
-@app.get("/ingest/status", tags=["Metrics"], summary="Report next expected seq for an idempotency key")
-def ingest_status(
-    idem_key: str = Query(..., alias="idempotency_key"),
-    publisher_email: str = Depends(verify_token),
-):
-    sess = _db["ingest_sessions"]
-    cur = sess.find(
-        {"publisher_email": publisher_email, "idempotency_key": idem_key},
-        {"_id": 0, "seq": 1, "status": 1}
-    )
-    records = list(cur)
-    if not records:
-        return {"next_expected_seq": 0, "processed": [], "in_progress": [], "missing": []}
+# @app.get("/ingest/status", tags=["Metrics"], summary="Report next expected seq for an idempotency key")
+# def ingest_status(
+#     idem_key: str = Query(..., alias="idempotency_key"),
+#     publisher_email: str = Depends(verify_token),
+# ):
+#     sess = _db["ingest_sessions"]
+#     cur = sess.find(
+#         {"publisher_email": publisher_email, "idempotency_key": idem_key},
+#         {"_id": 0, "seq": 1, "status": 1}
+#     )
+#     records = list(cur)
+#     if not records:
+#         return {"next_expected_seq": 0, "processed": [], "in_progress": [], "missing": []}
 
-    done = sorted(r["seq"] for r in records if r.get("status") == "done")
-    in_prog = sorted(r["seq"] for r in records if r.get("status") == "in_progress")
+#     done = sorted(r["seq"] for r in records if r.get("status") == "done")
+#     in_prog = sorted(r["seq"] for r in records if r.get("status") == "in_progress")
 
-    next_seq = (max(done) + 1) if done else (min(in_prog) if in_prog else 0)
+#     next_seq = (max(done) + 1) if done else (min(in_prog) if in_prog else 0)
 
-    # optional: gaps to help diagnose partial uploads
-    max_seq = max(done) if done else -1
-    missing = [s for s in range(max_seq + 1) if s not in set(done)]
+#     # optional: gaps to help diagnose partial uploads
+#     max_seq = max(done) if done else -1
+#     missing = [s for s in range(max_seq + 1) if s not in set(done)]
 
-    return {
-        "next_expected_seq": next_seq,
-        "processed": done,
-        "in_progress": in_prog,
-        "missing": missing
-    }
+#     return {
+#         "next_expected_seq": next_seq,
+#         "processed": done,
+#         "in_progress": in_prog,
+#         "missing": missing
+#     }
     
 @app.get("/verify_token", tags=["Auth"], summary=["Validate GreenDIGIT JWT based token."])
 def verify_token_endpoint(email: str = Depends(verify_token)):

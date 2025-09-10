@@ -4,25 +4,18 @@ services:
     working_dir: /app
     ports:
       - "8000:8000"
-    expose: ["8000"]
     volumes:
       - .:/app
     command: ["sh", "-c", "pip install --no-cache-dir -r requirements.txt && uvicorn login_server:app --host 0.0.0.0 --port 8000"]
-    # Ensuring that it talks to all replicas, not just the main ;)
     environment:
       - MONGO_URI=mongodb://metrics-db:27017,metrics-db-2:27017,metrics-db-3:27017/?replicaSet=rs0
-    # healthcheck:
-    #   test: ["CMD", "curl", "-sf", "https://mc-a4.lab.uvalight.net/gd-cim-api/docs"]
-    #   interval: 10s
-    #   timeout: 5s
-    #   retries: 10
 
       
   metrics-db:
     image: mongo:7
     restart: unless-stopped
     volumes:
-      - ./metrics_data:/data/db
+      - ./metricsdb/metrics_data:/data/db
     ports:
       - "27017:27017"
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
@@ -37,7 +30,7 @@ services:
     restart: unless-stopped
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     volumes:
-      - ./metrics_data_2:/data/db
+      - ./metricsdb/metrics_data_2:/data/db
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand('ping').ok\" || exit 1"]
       interval: 10s
@@ -49,7 +42,7 @@ services:
     restart: unless-stopped
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     volumes:
-      - ./metrics_data_3:/data/db
+      - ./metricsdb/metrics_data_3:/data/db
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand('ping').ok\" || exit 1"]
       interval: 10s
@@ -208,7 +201,7 @@ services:
       # - NODE_TO_SITE_FILE=/data/node_to_site.json
       - RESULT_FORWARD_URL=https://mc-a4.lab.uvalight.net/gd-cim-api/cnr-endpoint
     volumes:
-      - ./publisher/publisher.py:/app/publisher.py:ro
+      - ./auth_metrics_server/publisher/publisher.py:/app/publisher.py:ro
     command: bash -lc "pip install --no-cache-dir pymongo requests python-dateutil && exec python -u /app/publisher.py"
     restart: unless-stopped
 

@@ -1,11 +1,10 @@
-## GreenDIGIT AuthServer 
+## 🌱🌍♻️ GreenDIGIT WP6 Metric Submission and Authentication Server 
 
 ### Overview
 
 This service provides a secure API for collecting and aggregating CIM metrics from authorised partners. Authentication is managed via a list of allowed emails and token-based access. The service is built with FastAPI and runs on a Uvicorn server, designed for easy integration and future extensibility.
 
 ### Data Storage
-
 - **Metrics Storage:**  
   Submitted metrics will be transformed and stored in a SQL-compatible format (PostgreSQL) and organised into appropriate namespaces for future querying and analysis.
 
@@ -304,10 +303,38 @@ dbm.metrics.insertOne({
 });
 JS
 ```
+
 Some helpers to restart services.
 > `docker compose logs -f mongo-stream-publisher cim-service-mock`
 > `docker compose logs -f mongo-stream-publisher ci-calc`
 > `docker compose up -d --force-recreate --no-deps cim-service-mock mongo-stream-publisher`
+
+### Restart MetricsDB from scratch with healthchecks
+```sh
+# Pause the change-stream publisher
+docker compose stop mongo-stream-publisher
+
+# Quick replica-set heatlh snapshot
+docker compose exec metrics-db mongosh --quiet --eval 'rs.status().members.map(m=>({name:m.name, state:m.stateStr, health:m.health}))'
+
+# Count document before wipe
+docker compose exec metrics-db mongosh "mongodb://metrics-db:27017,metrics-db-2:27017,metrics-db-3:27017/?replicaSet=rs0" --quiet --eval \
+'db.getSiblingDB("metricsdb").metrics.countDocuments({})'
+
+# OPTIONAL: peek at a few docs (no _id)
+docker compose exec metrics-db mongosh --quiet --eval \
+'db.getSiblingDB("metricsdb").metrics.find({}, {_id:0}).limit(5).toArray()'
+
+# Drop the whole database (fastest clean slate)
+docker compose exec metrics-db mongosh --quiet --eval 'db.getSiblingDB("metricsdb").dropDatabase()'
+
+# Re-run your one-shot index job (safe to re-run)
+docker compose run --rm mongo-indexes
+
+# Verify indexes exist
+docker compose exec metrics-db mongosh --quiet --eval \
+'db.getSiblingDB("metricsdb").metrics.getIndexes().map(i=>i.name)'
+```
 
 ### Integration & Next Steps (Roadmap)
 - [x] Separate DB from API, because I am guessing that if we rebuild using Docker, this will reset the DB @goncalo.
