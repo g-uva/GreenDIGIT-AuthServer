@@ -5,8 +5,15 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - .:/app
-    command: ["sh", "-c", "pip install --no-cache-dir -r requirements.txt && uvicorn login_server:app --host 0.0.0.0 --port 8000"]
+      - ./auth_metrics_server:/app
+    # command: ["sh", "-c", "pip install --no-cache-dir -r requirements.txt && uvicorn login_server:app --host 0.0.0.0 --port 8000"]
+    command: >
+      sh -lc '
+        echo "PWD=$(pwd)"; ls -la;
+        test -f /app/requirements.txt || { echo "requirements.txt missing"; exit 1; }
+        pip install --no-cache-dir -r /app/requirements.txt &&
+        exec uvicorn login_server:app --host 0.0.0.0 --port 8000
+      '
     environment:
       - MONGO_URI=mongodb://metrics-db:27017,metrics-db-2:27017,metrics-db-3:27017/?replicaSet=rs0
 

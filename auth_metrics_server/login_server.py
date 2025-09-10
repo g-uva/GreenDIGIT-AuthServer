@@ -49,7 +49,7 @@ app = FastAPI(
     swagger_ui_parameters={"persistAuthorization": True},
     root_path="/gd-cim-api"
 )
-app.mount("/static", StaticFiles(directory="static", name="static"))
+app.mount("/static", StaticFiles(directory="static"), name="static")
 security = HTTPBearer()
 
 # Secret key for JWT
