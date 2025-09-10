@@ -10,8 +10,8 @@ This service provides a secure API for collecting and aggregating CIM metrics fr
 ![EU Logo](auth_metrics_server/static/EN-Funded-by-the-EU-POS-2.png) -->
 
 <div style="display:flex;align-items:center;width:100%;">
-  <img src="auth_metrics_server/static/cropped-GD_logo.png" alt="GreenDIGIT Logo" width="110px" style="margin-right:100px">
   <img src="auth_metrics_server/static/EN-Funded-by-the-EU-POS-2.png" alt="EU Logo" width="250px">
+  <img src="auth_metrics_server/static/cropped-GD_logo.png" alt="GreenDIGIT Logo" width="110px" style="margin-right:100px">
 </div>
 
 ### Data Storage
