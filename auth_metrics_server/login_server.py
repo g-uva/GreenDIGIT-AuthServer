@@ -18,6 +18,7 @@ from pymongo.errors import PyMongoError
 from pymongo.write_concern import WriteConcern
 from datetime import datetime, timezone
 import traceback, uuid
+from pathlib import Path
 
 
 
@@ -49,7 +50,9 @@ app = FastAPI(
     swagger_ui_parameters={"persistAuthorization": True},
     root_path="/gd-cim-api"
 )
-app.mount("/static", StaticFiles(directory="static"), name="static")
+
+STATIC_DIR = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 security = HTTPBearer()
 
 # Secret key for JWT
@@ -98,6 +101,8 @@ def load_allowed_emails():
         return set()
     with open(path, "r") as f:
         return set(line.strip().lower() for line in f if line.strip())
+    
+
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
     token = credentials.credentials
@@ -200,6 +205,11 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
                     box-shadow: 0 20px 40px rgba(0,0,0,0.1);
                     width: 100%;
                     max-width: 600px;
+                    align-items: center;
+                }}
+                
+                h1 {{
+                    text-align: center;
                 }}
                 
                 h2 {{
@@ -330,8 +340,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
                 <div class="warning">
                     ⚠️ This token expires in 24 hours. Store it securely and do not share it.
                 </div>
-                
-                <a href="login.html" class="back-link">← Generate New Token</a>
             </div>
             
             <script>
@@ -358,6 +366,13 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         </html>
     """
 
+def static_url(request: Request, filename: str) -> str:
+    # Prefer proxy header; fall back to ASGI root_path; finally no prefix
+    prefix = request.headers.get("x-forwarded-prefix") or request.scope.get("root_path") or ""
+    if prefix.endswith("/"):
+        prefix = prefix[:-1]
+    return f"{prefix}/static/{filename}"
+
 @app.get(
     "/token-ui",
     tags=["Auth"],
@@ -365,21 +380,24 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     description="Convenience page that POSTs to `/login`.",
     response_class=HTMLResponse
 )
-def token_ui():
-    return """
+def token_ui(request: Request):
+    gd_logo = static_url(request, "cropped-GD_logo.png")
+    eu_logo = static_url(request, "EN-Funded-by-the-EU-POS-2.png")
+
+    return f"""
         <html lang="en">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>API Token Generator</title>
             <style>
-                * {
+                * {{
                     margin: 0;
                     padding: 0;
                     box-sizing: border-box;
-                }
+                }}
                 
-                body {
+                body {{
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                     min-height: 100vh;
@@ -387,32 +405,33 @@ def token_ui():
                     align-items: center;
                     justify-content: center;
                     padding: 20px;
-                }
+                }}
                 
-                .container {
+                .container {{
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
                     background: white;
                     padding: 40px;
                     border-radius: 12px;
                     box-shadow: 0 20px 40px rgba(0,0,0,0.1);
                     width: 100%;
                     max-width: 500px;
-                    display: flex;
-                    flex-direction: column;
-                }
+                }}
                 
-                h2 {
+                h2 {{
                     color: #333;
                     margin-bottom: 30px;
                     text-align: center;
                     font-size: 24px;
                     font-weight: 600;
-                }
+                }}
                 
-                form {
+                form {{
                     margin-bottom: 30px;
-                }
+                }}
                 
-                input {
+                input {{
                     width: 100%;
                     padding: 12px 16px;
                     margin-bottom: 16px;
@@ -420,14 +439,14 @@ def token_ui():
                     border-radius: 8px;
                     font-size: 16px;
                     transition: border-color 0.3s ease;
-                }
+                }}
                 
-                input:focus {
+                input:focus {{
                     outline: none;
                     border-color: #667eea;
-                }
+                }}
                 
-                button {
+                button {{
                     width: 100%;
                     padding: 14px;
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -438,93 +457,94 @@ def token_ui():
                     font-weight: 600;
                     cursor: pointer;
                     transition: transform 0.2s ease;
-                }
+                }}
                 
-                button:hover {
+                button:hover {{
                     transform: translateY(-2px);
-                }
+                }}
                 
-                .info {
+                .info {{
                     background: #f8f9fa;
                     padding: 20px;
                     border-radius: 8px;
                     border-left: 4px solid #ffc107;
                     margin-bottom: 20px;
-                }
+                }}
                 
-                .info p {
+                .info p {{
                     color: #666;
                     font-size: 14px;
                     line-height: 1.5;
                     margin-bottom: 0;
-                }
+                }}
                 
-                .contact {
+                .contact {{
                     background: #f8f9fa;
                     padding: 20px;
                     border-radius: 8px;
                     border-left: 4px solid #17a2b8;
                     margin-bottom: 20px;
-                }
+                    width: 100%;
+                }}
                 
-                .contact p {
+                .contact p {{
                     color: #666;
                     font-size: 14px;
                     margin-bottom: 10px;
-                }
+                }}
                 
-                .contact ul {
+                .contact ul {{
                     list-style: none;
                     margin: 0;
                     padding: 0;
-                }
+                }}
                 
-                .contact li {
+                .contact li {{
                     color: #667eea;
                     font-size: 14px;
                     margin-bottom: 5px;
-                }
+                }}
                 
-                .contact li:last-child {
+                .contact li:last-child {{
                     margin-bottom: 0;
-                }
+                }}
 
                 /* Footer style */
-                .footer {
+                .footer {{
                     font-size: 12px;
                     color: #555;
                     text-align: center;
                     margin-top: 30px;
                     line-height: 1.5;
-                }
+                }}
 
-                .footer a {
+                .footer a {{
                     color: #667eea;
                     text-decoration: none;
-                }
+                }}
 
-                .footer a:hover {
+                .footer a:hover {{
                     text-decoration: underline;
-                }
+                }}
 
-                .footer-logos {
+                .footer-logos {{
                     display: flex;
-                    justify-content: center;
+                    justify-content: space-between;
                     align-items: center;
                     gap: 20px;
                     margin-top: 15px;
-                }
+                }}
 
-                .footer-logos img {
+                .footer-logos img {{
                     max-height: 50px;
                     object-fit: contain;
-                }
+                }}
             </style>
         </head>
         <body>
             <div class="container">
-                <h1>GreenDIGIT WP6 CIM API Token</h1>
-                <h2>Login to generate token</h2>
+                <h1>GreenDIGIT WP6 CIM API</h1>
+                <h2 style="margin-top:15px;">Login to generate token</h2>
                 <form action="login" method="post">
                     <input name="username" type="email" placeholder="Email" required>
                     <input name="password" type="password" placeholder="Password" required>
@@ -549,15 +569,14 @@ def token_ui():
                     <a href="https://cordis.europa.eu/project/id/101131207" target="_blank">101131207</a>.
                     
                     <div class="footer-logos">
-                        <img src="/static/cropped-GD_logo.png" alt="GreenDIGIT logo">
-                        <img src="/static/EN-Funded-by-the-EU-POS-2.png" alt="Funded by the EU">
+                        <img src="{gd_logo}" alt="GreenDIGIT logo">
+                        <img src="{eu_logo}" alt="Funded by the EU">
                     </div>
                 </div>
             </div>
         </body>
         </html>
     """
-
 
 @app.post(
     "/submit",

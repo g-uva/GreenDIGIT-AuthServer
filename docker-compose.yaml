@@ -12,7 +12,7 @@ services:
         echo "PWD=$(pwd)"; ls -la;
         test -f /app/requirements.txt || { echo "requirements.txt missing"; exit 1; }
         pip install --no-cache-dir -r /app/requirements.txt &&
-        exec uvicorn login_server:app --host 0.0.0.0 --port 8000
+        exec uvicorn login_server:app --host 0.0.0.0 --port 8000 --root-path /gd-cim-api --proxy-headers
       '
     environment:
       - MONGO_URI=mongodb://metrics-db:27017,metrics-db-2:27017,metrics-db-3:27017/?replicaSet=rs0
@@ -176,7 +176,7 @@ services:
     image: goncaloferreirauva/gd-ci-service
     restart: unless-stopped
     env_file:
-      - .env
+      - auth_metrics_server/.env
     environment:
       # - AUTH_VERIFY_URL=http://cim-fastapi:8000/gd-cim-api/verify_token
       - AUTH_VERIFY_URL=https://mc-a4.lab.uvalight.net/gd-cim-api/verify_token
@@ -196,7 +196,7 @@ services:
       ci-calc:  { condition: service_started }
       cim-fastapi: { condition: service_started }
     env_file:
-      - .env
+      - auth_metrics_server/.env
     environment:
       - MONGO_URI=mongodb://metrics-db:27017,metrics-db-2:27017,metrics-db-3:27017/?replicaSet=rs0
       - WATCH_DB=metricsdb
