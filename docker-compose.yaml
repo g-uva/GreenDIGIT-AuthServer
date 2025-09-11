@@ -173,14 +173,20 @@ services:
       - ENABLE_SSL=false
   
   ci-calc:
-    image: goncaloferreirauva/gd-ci-service
+    image: goncaloferreirauva/gd-ci-service:latest
     restart: unless-stopped
     env_file:
-      - auth_metrics_server/.env
+      - .env
     environment:
-      # - AUTH_VERIFY_URL=http://cim-fastapi:8000/gd-cim-api/verify_token
+      - CI_PROVIDER=wattprint
+      - WATTPRINT_BASE=https://api.wattprint.eu
+      - WATTPRINT_COOKIE=${WATTPRINT_COOKIE}
+      - RETAIN_MONGO_URI=mongodb://ci-retain-db:27017/?replicaSet=rs0
+      - RETAIN_DB_NAME=ci-retainment-db
+      - RETAIN_COLL=pending_ci
+      - RETAIN_TTL_SECONDS=172800
       - AUTH_VERIFY_URL=https://mc-a4.lab.uvalight.net/gd-cim-api/verify_token
-      - GD_BEARER_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJnb25jYWxvLmZlcnJlaXJhQHN0dWRlbnQudXZhLm5sIiwiaXNzIjoiZ3JlZW5kaWdpdC1sb2dpbi11dmEiLCJpYXQiOjE3NTc1ODA1OTUsIm5iZiI6MTc1NzU4MDU5NSwiZXhwIjoxNzU3NjY2OTk1fQ.cUsUlj-sTdqdIJC6KaJWc9QL8OiYLuJts3cIf17_xy8
+      - GD_BEARER_TOKEN=${JWT_TOKEN}
     command: uvicorn main:app --host 0.0.0.0 --port 8011 --log-level info
     ports:
       - "8011:8011"
@@ -196,12 +202,12 @@ services:
       ci-calc:  { condition: service_started }
       cim-fastapi: { condition: service_started }
     env_file:
-      - auth_metrics_server/.env
+      - .env
     environment:
       - MONGO_URI=mongodb://metrics-db:27017,metrics-db-2:27017,metrics-db-3:27017/?replicaSet=rs0
       - WATCH_DB=metricsdb
       - WATCH_COLL=metrics
-      - GD_BEARER_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJnb25jYWxvLmZlcnJlaXJhQHN0dWRlbnQudXZhLm5sIiwiaXNzIjoiZ3JlZW5kaWdpdC1sb2dpbi11dmEiLCJpYXQiOjE3NTc1ODA1OTUsIm5iZiI6MTc1NzU4MDU5NSwiZXhwIjoxNzU3NjY2OTk1fQ.cUsUlj-sTdqdIJC6KaJWc9QL8OiYLuJts3cIf17_xy8
+      - GD_BEARER_TOKEN=${JWT_TOKEN}
       - WEBHOOK_URL=http://ci-calc:8011/ci
       - SITES_URL=http://ci-calc:8011/load-sites
       - RESULT_FORWARD_URL=https://mc-a4.lab.uvalight.net/gd-cim-api/cnr-endpoint
@@ -252,3 +258,53 @@ services:
       - ./pg_data:/var/lib/postgresql/data
     restart: unless-stopped
 
+
+  ci-retain-db:
+    image: mongo:7
+    command: ["mongod","--bind_ip_all","--replSet","rs0"]
+    ports: ["127.0.0.1:27018:27017"]   # local-only exposure
+    volumes:
+      - ./ci_retain_data:/data/db
+    restart: unless-stopped
+
+  # ci-retain-db-2:
+  #   image: mongo:7
+  #   command: ["mongod","--bind_ip_all","--replSet","rs0"]
+  #   ports: ["127.0.0.1:27018:27017"]   # local-only exposure
+  #   volumes:
+  #     - ./ci_retain_data:/data/db
+  #   restart: unless-stopped
+  
+  # ci-retain-db-3:
+  #   image: mongo:7
+  #   command: ["mongod","--bind_ip_all","--replSet","rs0"]
+  #   ports: ["127.0.0.1:27018:27017"]   # local-only exposure
+  #   volumes:
+  #     - ./ci_retain_data:/data/db
+  #   restart: unless-stopped
+
+  ci-retain-rs-init:
+    image: mongo:7
+    depends_on: { ci-retain-db: { condition: service_started } }
+    command: >
+      bash -lc 'sleep 2 &&
+      mongosh --host ci-retain-db:27017 --eval "rs.initiate({_id:\\"rs0\\",members:[{_id:0,host:\\"ci-retain-db:27017\\"}]})" || true'
+    restart: "no"
+
+  ci-retain-worker:
+    image: python:3.12-slim
+    depends_on:
+      ci-retain-rs-init: { condition: service_completed_successfully }
+      ci-calc: { condition: service_started }
+    environment:
+      - RETAIN_MONGO_URI=mongodb://ci-retain-db:27017/?replicaSet=rs0
+      - RETAIN_DB_NAME=ci-retainment-db
+      - RETAIN_COLL=pending_ci
+      - WATTPRINT_BASE=https://api.wattprint.eu
+      - WATTPRINT_COOKIE=${WATTPRINT_COOKIE}
+      - RESULT_FORWARD_URL=${RESULT_FORWARD_URL}   # same one you already use
+      - PUE_DEFAULT=1.4
+    volumes:
+      - ./retain_worker.py:/app/retain_worker.py:ro
+    command: bash -lc "pip install --no-cache-dir requests pymongo && python -u /app/retain_worker.py"
+    restart: unless-stopped

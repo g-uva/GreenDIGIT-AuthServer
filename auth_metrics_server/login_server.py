@@ -676,6 +676,43 @@ def reset_password(
     db.commit()
     return {"msg": "Password updated successfully"}
 
+@app.get("/verify_token", tags=["Auth"], summary=["Validate GreenDIGIT JWT based token."])
+def verify_token_endpoint(email: str = Depends(verify_token)):
+    return { "valid": True, "sub": email }
+
+
+@app.post(
+    "/get-token",
+    tags=["Auth"],
+    summary="Get JWT via JSON body (email and password).",
+    description="Returns JSON: {access_token, token_type, expires_in}."
+)
+def get_token(body: GetTokenRequest, db: Session = Depends(get_db)):
+    email_lower = body.email.strip().lower()
+    user = db.query(User).filter(User.email == email_lower).first()
+    if not user:
+        allowed_emails = load_allowed_emails()
+        if email_lower not in allowed_emails:
+            raise HTTPException(status_code=403, detail="Email not allowed")
+        hashed_password = pwd_context.hash(body.password)
+        user = User(email=email_lower, hashed_password=hashed_password)
+        db.add(user); db.commit(); db.refresh(user)
+    elif not pwd_context.verify(body.password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Incorrect password. \n If you have forgotten your password please contact the GreenDIGIT team: goncalo.ferreira@student.uva.nl.")
+
+    now = int(time.time())
+    token_data = {
+        "sub": user.email,
+        "iss": JWT_ISSUER,
+        "iat": now,
+        "nbf": now,
+        "exp": now + ACCESS_TOKEN_EXPIRE_SECONDS,
+    }
+    token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+    return {"access_token": token, "token_type": "bearer", "expires_in": ACCESS_TOKEN_EXPIRE_SECONDS}
+
+
+
 # @app.post(
 #     "/submit/ndjson",
 #     tags=["Metrics"],
@@ -935,38 +972,3 @@ def reset_password(
 #         "in_progress": in_prog,
 #         "missing": missing
 #     }
-    
-@app.get("/verify_token", tags=["Auth"], summary=["Validate GreenDIGIT JWT based token."])
-def verify_token_endpoint(email: str = Depends(verify_token)):
-    return { "valid": True, "sub": email }
-
-
-@app.post(
-    "/get-token",
-    tags=["Auth"],
-    summary="Get JWT via JSON body (email and password).",
-    description="Returns JSON: {access_token, token_type, expires_in}."
-)
-def get_token(body: GetTokenRequest, db: Session = Depends(get_db)):
-    email_lower = body.email.strip().lower()
-    user = db.query(User).filter(User.email == email_lower).first()
-    if not user:
-        allowed_emails = load_allowed_emails()
-        if email_lower not in allowed_emails:
-            raise HTTPException(status_code=403, detail="Email not allowed")
-        hashed_password = pwd_context.hash(body.password)
-        user = User(email=email_lower, hashed_password=hashed_password)
-        db.add(user); db.commit(); db.refresh(user)
-    elif not pwd_context.verify(body.password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="Incorrect password. \n If you have forgotten your password please contact the GreenDIGIT team: goncalo.ferreira@student.uva.nl.")
-
-    now = int(time.time())
-    token_data = {
-        "sub": user.email,
-        "iss": JWT_ISSUER,
-        "iat": now,
-        "nbf": now,
-        "exp": now + ACCESS_TOKEN_EXPIRE_SECONDS,
-    }
-    token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
-    return {"access_token": token, "token_type": "bearer", "expires_in": ACCESS_TOKEN_EXPIRE_SECONDS}

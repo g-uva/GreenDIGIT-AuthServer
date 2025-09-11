@@ -17,3 +17,4 @@ upload.log
 output/
 sites_data/
 allowed_emails.txt
+ci_retain_data/
