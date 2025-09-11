@@ -124,9 +124,21 @@ while True:
                     if r.status_code >= 400:
                         print("Response body:", r.text[:400], flush=True)
                     elif RESULT_FORWARD_URL:
-                        fr = session.post(RESULT_FORWARD_URL, data=r.text, headers=fwd_headers, timeout=15)
-                        print(f"JSON with CFP: {r.text}")
-                        print(f"→ FORWARD {RESULT_FORWARD_URL} -> {fr.status_code}", flush=True)
+                        cim_payload = {
+                            "publisher_email": doc.get("publisher_email", "unknown@example.org"),
+                            "job_id": str(doc.get("job_id", doc.get("_id"))),
+                            "metrics": [
+                                {
+                                    "node": doc.get("body", {}).get("node", "unknown"),
+                                    "metric": doc.get("body", {}).get("metric", "unknown"),
+                                    "value": doc.get("body", {}).get("value", 0.0),
+                                    "timestamp": doc.get("body", {}).get("ts"),
+                                    "cfp_ci_service": r.json()
+                                }
+                            ]
+                        }
+                        fr = session.post(RESULT_FORWARD_URL, json=cim_payload, headers=fwd_headers, timeout=15)
+                        print("→ FORWARD", RESULT_FORWARD_URL, "->", fr.status_code, flush=True)
                 except Exception as e:
                     print("POST error:", e, flush=True)
     except errors.PyMongoError as e:

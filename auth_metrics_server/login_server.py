@@ -736,7 +736,7 @@ def digest_cim_json(body: PostCimJsonRequest):
         print(f"  - Metric {m.metric} @ {m.timestamp}: {m.value} (node={m.node})")
         print("    CFP:", m.cfp_ci_service)
 
-    # Mock SQL mapping (here you’d adapt to cnr_db_connect)
+    # Mock SQL mapping (to later adapt cnr_db_connect.py)
     mock_sql = [
         {
             "table": "metrics_table",
