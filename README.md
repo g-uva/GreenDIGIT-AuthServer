@@ -368,11 +368,6 @@ db.getSiblingDB("ci-retainment-db").pending_ci.find({valid:false})
 - [ ] Deploy and connect CIM service (transformation).
 - [ ] Further discussions will determine the best approach for transforming and storing metrics, as well as any additional integration requirements.
 
-- [ ] Verify that the retain-db is working.
-- [ ] Add replicas for the retain-db
-- [ ] Add automatic fetch of the GOC DB. If not done for one hour at least, fetch again on event-driven.
-- [ ] Convert raw metrics to a energy_kWh (for the CI calculation)
-
 ## Contact & Questions
 **Contact:**  
 For questions or to request access, please contact the GreenDIGIT UvA team:
