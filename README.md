@@ -229,14 +229,14 @@ uvicorn login_server:app --host 0.0.0.0 --port 8000
 #### B. Create a user and get a token
 ```bash
 # touch allowed_emails.txt && echo 'you@example.org' >> allowed_emails.txt
-curl -s -X POST -F 'username=goncalo.ferreira@student.uva.nl' -F 'password=goncalo' http://localhost:8000/gd-cim-api/login
+curl -s -X POST -F 'username=goncalo.ferreira@student.uva.nl' -F 'password=goncalo' https://mc-a4.lab.uvalight.net/gd-cim-api/login
 # Copy the JWT shown in the HTML response (or use /token-ui)
 ```
 
 #### C. Small single JSON
 ```bash
 TOKEN=$JWT_TOKEN
-curl -s -X POST http://localhost:8000/gd-cim-api/submit \
+curl -s -X POST https://mc-a4.lab.uvalight.net/gd-cim-api/submit \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"cpu":0.7,"mem":1536}'
@@ -244,7 +244,7 @@ curl -s -X POST http://localhost:8000/gd-cim-api/submit \
 
 #### D. Test /submit/batch (array + idempotency)
 ```bash
-curl -s -X POST http://localhost:8000/gd-cim-api/submit/batch \
+curl -s -X POST https://mc-a4.lab.uvalight.net/gd-cim-api/submit/batch \
   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json" \
   -H "Idempotency-Key: 11111111-1111-1111-1111-111111111111" \
   -H "X-Batch-Seq: 0" \
@@ -252,7 +252,7 @@ curl -s -X POST http://localhost:8000/gd-cim-api/submit/batch \
 # => {"ok":true,"inserted":2,"next_expected_seq":1}
 
 # Retry same request to verify de-dup
-curl -s -X POST http://localhost:8000/gd-cim-api/submit/batch \
+curl -s -X POST https://mc-a4.lab.uvalight.net/gd-cim-api/submit/batch \
   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json" \
   -H "Idempotency-Key: 11111111-1111-1111-1111-111111111111" \
   -H "X-Batch-Seq: 0" \
@@ -265,13 +265,13 @@ curl -s -X POST http://localhost:8000/gd-cim-api/submit/batch \
 printf '%s\n' '{"metric":"cpu","v":0.11}' '{"metric":"cpu","v":0.12}' '{"metric":"mem","v":123}' > tiny.ndjson
 
 # Plain
-curl -s -X POST http://localhost:8000/gd-cim-api/submit/ndjson \
+curl -s -X POST https://mc-a4.lab.uvalight.net/gd-cim-api/submit/ndjson \
      -H "Authorization: Bearer $TOKEN" \
      -H "Content-Type: application/x-ndjson" \
      --data-binary @tiny.ndjson
 
 # Gzipped
-gzip -c tiny.ndjson | curl -s -X POST http://localhost:8000/gd-cim-api/submit/ndjson \
+gzip -c tiny.ndjson | curl -s -X POST https://mc-a4.lab.uvalight.net/gd-cim-api/submit/ndjson \
      -H "Authorization: Bearer $TOKEN" \
      -H "Content-Type: application/x-ndjson" \
      -H "Content-Encoding: gzip" \
