@@ -2,16 +2,17 @@ import os
 import requests
 from dotenv import load_dotenv, set_key
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
+# script_dir = os.path.dirname(os.path.abspath(__file__))
+cmd_pwd_dir = os.getcwd()
 
 # Load existing .env (same folder by default)
-env_local = os.path.join(script_dir, ".env")
+env_local = os.path.join(cmd_pwd_dir, ".env")
 
 # If not found, check parent directory
 if os.path.isfile(env_local):
     ENV_PATH = env_local
 else:
-    ENV_PATH = os.path.join(os.path.dirname(script_dir), ".env")
+    ENV_PATH = os.path.join(os.path.dirname(cmd_pwd_dir), ".env")
 
 load_dotenv(ENV_PATH)
 

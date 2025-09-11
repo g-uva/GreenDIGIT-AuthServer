@@ -180,7 +180,7 @@ services:
     environment:
       # - AUTH_VERIFY_URL=http://cim-fastapi:8000/gd-cim-api/verify_token
       - AUTH_VERIFY_URL=https://mc-a4.lab.uvalight.net/gd-cim-api/verify_token
-      - GD_BEARER_TOKEN=${JWT_TOKEN}
+      - GD_BEARER_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJnb25jYWxvLmZlcnJlaXJhQHN0dWRlbnQudXZhLm5sIiwiaXNzIjoiZ3JlZW5kaWdpdC1sb2dpbi11dmEiLCJpYXQiOjE3NTc1ODA1OTUsIm5iZiI6MTc1NzU4MDU5NSwiZXhwIjoxNzU3NjY2OTk1fQ.cUsUlj-sTdqdIJC6KaJWc9QL8OiYLuJts3cIf17_xy8
     command: uvicorn main:app --host 0.0.0.0 --port 8011 --log-level info
     ports:
       - "8011:8011"
@@ -201,11 +201,9 @@ services:
       - MONGO_URI=mongodb://metrics-db:27017,metrics-db-2:27017,metrics-db-3:27017/?replicaSet=rs0
       - WATCH_DB=metricsdb
       - WATCH_COLL=metrics
-      # - WEBHOOK_URL=http://cim-service-mock/
-      - GD_BEARER_TOKEN=${JWT_TOKEN}
+      - GD_BEARER_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJnb25jYWxvLmZlcnJlaXJhQHN0dWRlbnQudXZhLm5sIiwiaXNzIjoiZ3JlZW5kaWdpdC1sb2dpbi11dmEiLCJpYXQiOjE3NTc1ODA1OTUsIm5iZiI6MTc1NzU4MDU5NSwiZXhwIjoxNzU3NjY2OTk1fQ.cUsUlj-sTdqdIJC6KaJWc9QL8OiYLuJts3cIf17_xy8
       - WEBHOOK_URL=http://ci-calc:8011/ci
       - SITES_URL=http://ci-calc:8011/load-sites
-      # - NODE_TO_SITE_FILE=/data/node_to_site.json
       - RESULT_FORWARD_URL=https://mc-a4.lab.uvalight.net/gd-cim-api/cnr-endpoint
     volumes:
       - ./auth_metrics_server/publisher/publisher.py:/app/publisher.py:ro

@@ -6,7 +6,7 @@ MONGO_URI  = os.environ["MONGO_URI"]
 DB         = os.environ.get("WATCH_DB","metricsdb")
 COLL       = os.environ.get("WATCH_COLL","metrics")
 
-WEBHOOK    = os.environ["WEBHOOK_URL"]
+WEBHOOK_URL    = os.environ["WEBHOOK_URL"]
 GD_BEARER_TOKEN      = os.environ.get("GD_BEARER_TOKEN","")
 SITES_URL  = os.environ.get("SITES_URL","http://ci-calc:8011/load-sites")
 RESULT_FORWARD_URL = os.environ.get("RESULT_FORWARD_URL","")
@@ -52,8 +52,11 @@ def load_sites():
 SITES = load_sites()
 
 def to_iso_z(ts):
+    if ts is None:
+        return None
     if isinstance(ts, datetime):
-        if ts.tzinfo is None: ts = ts.replace(tzinfo=timezone.utc)
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
         return ts.astimezone(timezone.utc).isoformat().replace("+00:00","Z")
     return str(ts)
 
@@ -68,29 +71,39 @@ def to_ci_request(doc: dict) -> dict:
         site = SITES.get(node)
         if not site:
             raise ValueError(f"No site mapping for node '{node}'")
+        
     payload = {
         "lat": site["lat"],
-        "lon": site["lon"],
-        "time": to_iso_z(b.get("ts")),
+        "lon": site["lon"]
     }
+        
+    ts = b.get("ts")
+    if isinstance(ts, datetime):
+        payload["time"] = to_iso_z(ts)
+    elif isinstance(ts, str) and ts.strip():
+        payload["time"] = ts.strip() # The API parses it.
+
     if site.get("pue") is not None:
         payload["pue"] = float(site["pue"])
     if "energy_kwh" in b:
         payload["energy_kwh"] = float(b["energy_kwh"])
+    
+    print("time: ", payload["time"])
+    
     return payload
 
 while True:
     client = connect()
     coll = client[DB][COLL]
-    print(f"Watching {DB}.{COLL} for inserts → {WEBHOOK}", flush=True)
+    print(f"Watching {DB}.{COLL} for inserts → {WEBHOOK_URL}", flush=True)
     try:
         with coll.watch([{"$match":{"operationType":"insert"}}], full_document="updateLookup") as stream:
             for change in stream:
                 doc = change.get("fullDocument", {})
                 try:
                     ci_payload = to_ci_request(doc)
-                    r = session.post(WEBHOOK, json=ci_payload, headers=headers, timeout=15)
-                    print(f"→ POST {WEBHOOK} -> {r.status_code}", flush=True)
+                    r = session.post(WEBHOOK_URL, json=ci_payload, headers=headers, timeout=15)
+                    print(f"→ POST {WEBHOOK_URL} -> {r.status_code}", flush=True)
                     if r.status_code >= 400:
                         print("Response body:", r.text[:400], flush=True)
                     elif RESULT_FORWARD_URL:
