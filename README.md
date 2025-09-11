@@ -346,6 +346,20 @@ docker compose exec metrics-db mongosh --quiet --eval \
 'db.getSiblingDB("metricsdb").metrics.getIndexes().map(i=>i.name)'
 ``` -->
 
+```sh
+# See the DB & indexes exist
+docker compose exec ci-retain-db mongosh --quiet --eval '
+c=db.getSiblingDB("ci-retainment-db");
+printjson(c.pending_ci.getIndexes());
+'
+
+# See pending invalid entries (if any)
+docker compose exec ci-retain-db mongosh --quiet --eval '
+db.getSiblingDB("ci-retainment-db").pending_ci.find({valid:false})
+  .project({_id:0, lat:1, lon:1, request_time:1, creation_time:1}).limit(5).toArray()
+'
+```
+
 ### Integration & Next Steps (Roadmap)
 - [x] Separate DB from API, because I am guessing that if we rebuild using Docker, this will reset the DB @goncalo.
 - [x] Step by step tutorial for: (1) run uvicorn locally, (2) running Dockerfile (server context), showing the endpoints (UI, OpenAPI, and others)
@@ -353,6 +367,11 @@ docker compose exec metrics-db mongosh --quiet --eval \
 - [ ] Integrate `POST` service for CNR database—do this programmatically.
 - [ ] Deploy and connect CIM service (transformation).
 - [ ] Further discussions will determine the best approach for transforming and storing metrics, as well as any additional integration requirements.
+
+- [ ] Verify that the retain-db is working.
+- [ ] Add replicas for the retain-db
+- [ ] Add automatic fetch of the GOC DB. If not done for one hour at least, fetch again on event-driven.
+- [ ] Convert raw metrics to a energy_kWh (for the CI calculation)
 
 ## Contact & Questions
 **Contact:**  

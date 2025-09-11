@@ -100,15 +100,32 @@ while True:
         with coll.watch([{"$match":{"operationType":"insert"}}], full_document="updateLookup") as stream:
             for change in stream:
                 doc = change.get("fullDocument", {})
+                metric_id = doc.get("_id")
+                if metric_id is not None:
+                     cli = MongoClient(os.environ["MONGO_URI"], appname="publisher-updater")
+                     mcoll = cli["metricsdb"]["metrics"]
                 try:
                     ci_payload = to_ci_request(doc)
                     r = session.post(WEBHOOK_URL, json=ci_payload, headers=headers, timeout=15)
                     print(f"→ POST {WEBHOOK_URL} -> {r.status_code}", flush=True)
+
+                    try:
+                        mcoll.update_one(
+                            {"_id": metric_id},
+                            {"$set": {
+                                "cfp_ci_service": r.json(),   # parsed CI response dict
+                                "cfp_ci_service_at": datetime.now(timezone.utc)
+                            }}
+                        )
+                    
+                    except Exception as e:
+                         print("Failed to write cfp_ci_service:", e, flush=True)
+
                     if r.status_code >= 400:
                         print("Response body:", r.text[:400], flush=True)
                     elif RESULT_FORWARD_URL:
                         fr = session.post(RESULT_FORWARD_URL, data=r.text, headers=fwd_headers, timeout=15)
-                        print(f"Data: \n {r.text}")
+                        print(f"JSON with CFP: {r.text}")
                         print(f"→ FORWARD {RESULT_FORWARD_URL} -> {fr.status_code}", flush=True)
                 except Exception as e:
                     print("POST error:", e, flush=True)

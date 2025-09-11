@@ -6,7 +6,8 @@ services:
       - "8000:8000"
     volumes:
       - ./auth_metrics_server:/app
-    # command: ["sh", "-c", "pip install --no-cache-dir -r requirements.txt && uvicorn login_server:app --host 0.0.0.0 --port 8000"]
+      - ./.env:/app/.env
+
     command: >
       sh -lc '
         echo "PWD=$(pwd)"; ls -la;
@@ -161,16 +162,6 @@ services:
         }
         JS
     restart: "no"
-
-
-  # Mock endpoint that logs every request (exposed on host :8022)
-  cim-service-mock:
-    image: ealen/echo-server:latest
-    restart: unless-stopped
-    ports:
-      - "8022:80"
-    environment:
-      - ENABLE_SSL=false
   
   ci-calc:
     image: goncaloferreirauva/gd-ci-service:latest
@@ -210,7 +201,7 @@ services:
       - GD_BEARER_TOKEN=${JWT_TOKEN}
       - WEBHOOK_URL=http://ci-calc:8011/ci
       - SITES_URL=http://ci-calc:8011/load-sites
-      - RESULT_FORWARD_URL=https://mc-a4.lab.uvalight.net/gd-cim-api/cnr-endpoint
+      - RESULT_FORWARD_URL=https://mc-a4.lab.uvalight.net/gd-cim-api/cim-json
     volumes:
       - ./auth_metrics_server/publisher/publisher.py:/app/publisher.py:ro
     command: bash -lc "pip install --no-cache-dir pymongo requests python-dateutil && exec python -u /app/publisher.py"

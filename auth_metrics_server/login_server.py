@@ -2,8 +2,8 @@ from fastapi import FastAPI, Depends, HTTPException, status, Request, Body, Quer
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordRequestForm
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-from typing import Any
+from pydantic import BaseModel, Field
+from typing import List, Dict, Any
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from typing import Optional
@@ -101,6 +101,18 @@ class SubmitData(BaseModel):
 class GetTokenRequest(BaseModel):
     email: str
     password: str
+    
+class MetricItem(BaseModel):
+    node: str
+    metric: str
+    value: float
+    timestamp: str
+    cfp_ci_service: Dict[str, Any] = Field(..., description="Embedded CI service response")
+
+class PostCimJsonRequest(BaseModel):
+    publisher_email: str
+    job_id: str
+    metrics: List[MetricItem]
 
 def get_db():
     db = SessionLocal()
@@ -115,8 +127,6 @@ def load_allowed_emails():
         return set()
     with open(path, "r") as f:
         return set(line.strip().lower() for line in f if line.strip())
-    
-
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
     token = credentials.credentials
@@ -711,6 +721,40 @@ def get_token(body: GetTokenRequest, db: Session = Depends(get_db)):
     token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
     return {"access_token": token, "token_type": "bearer", "expires_in": ACCESS_TOKEN_EXPIRE_SECONDS}
 
+@app.post(
+    "/cim-json",
+    tags=["Metrics"],
+    summary="Submit JSON metrics for conversion to SQL.",
+    description="Converts JSON metrics with CFP calculated into namespaces to be submitted to SQL-compatible endpoint Databases."
+)
+def digest_cim_json(body: PostCimJsonRequest):
+    # For now just print for debugging
+    print("Received /cim-json submission:")
+    print("Publisher:", body.publisher_email)
+    print("Job ID:", body.job_id)
+    for m in body.metrics:
+        print(f"  - Metric {m.metric} @ {m.timestamp}: {m.value} (node={m.node})")
+        print("    CFP:", m.cfp_ci_service)
+
+    # Mock SQL mapping (here you’d adapt to cnr_db_connect)
+    mock_sql = [
+        {
+            "table": "metrics_table",
+            "publisher_email": body.publisher_email,
+            "job_id": body.job_id,
+            "metric": m.metric,
+            "value": m.value,
+            "timestamp": m.timestamp,
+            "cfp": m.cfp_ci_service.get("cfp_g")
+        }
+        for m in body.metrics
+    ]
+
+    print("Mock SQL mapping:")
+    for row in mock_sql:
+        print(row)
+
+    return {"ok": True, "rows_prepared": len(mock_sql)}
 
 
 # @app.post(
