@@ -28,6 +28,6 @@ r = requests.post(url, json={"email": email, "password": password}, timeout=10)
 r.raise_for_status()
 token = r.json()["access_token"]
 
-# Write/replace WATTPRINT_COOKIE in the same .env
-set_key(ENV_PATH, "WATTPRINT_COOKIE", token)
-print("Updated WATTPRINT_COOKIE in", ENV_PATH)
+# Write/replace WATTPRINT_TOKEN in the same .env
+set_key(ENV_PATH, "WATTPRINT_TOKEN", token)
+print("Updated WATTPRINT_TOKEN in", ENV_PATH)

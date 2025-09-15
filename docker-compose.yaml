@@ -6,7 +6,7 @@ services:
       - "8000:8000"
     volumes:
       - ./auth_metrics_server:/app
-      - ./.env:/app/.env
+      - ./.env:/app/.env:ro
 
     command: >
       sh -lc '
@@ -171,8 +171,6 @@ services:
     environment:
       - CI_PROVIDER=wattprint
       - WATTPRINT_BASE=https://api.wattprint.eu
-      - WATTPRINT_COOKIE=${WATTPRINT_COOKIE}
-      - RETAIN_MONGO_URI=mongodb://ci-retain-db:27017/?replicaSet=rs0
       - RETAIN_DB_NAME=ci-retainment-db
       - RETAIN_COLL=pending_ci
       - RETAIN_TTL_SECONDS=172800
@@ -201,7 +199,6 @@ services:
       - GD_BEARER_TOKEN=${JWT_TOKEN}
       - WEBHOOK_URL=http://ci-calc:8011/ci
       - SITES_URL=http://ci-calc:8011/load-sites
-      - RESULT_FORWARD_URL=https://mc-a4.lab.uvalight.net/gd-cim-api/cim-json
     volumes:
       - ./auth_metrics_server/publisher/publisher.py:/app/publisher.py:ro
     command: bash -lc "pip install --no-cache-dir pymongo requests python-dateutil && exec python -u /app/publisher.py"
@@ -249,53 +246,45 @@ services:
       - ./pg_data:/var/lib/postgresql/data
     restart: unless-stopped
 
-
-  ci-retain-db:
+  ci-retain-db-1:
     image: mongo:7
-    command: ["mongod","--bind_ip_all","--replSet","rs0"]
-    ports: ["127.0.0.1:27018:27017"]   # local-only exposure
-    volumes:
-      - ./ci_retain_data:/data/db
+    command: ["mongod","--replSet","rs0","--bind_ip_all"]
+    volumes: [ "./ci_retain_data_1:/data/db" ]
     restart: unless-stopped
 
-  # ci-retain-db-2:
-  #   image: mongo:7
-  #   command: ["mongod","--bind_ip_all","--replSet","rs0"]
-  #   ports: ["127.0.0.1:27018:27017"]   # local-only exposure
-  #   volumes:
-  #     - ./ci_retain_data:/data/db
-  #   restart: unless-stopped
-  
-  # ci-retain-db-3:
-  #   image: mongo:7
-  #   command: ["mongod","--bind_ip_all","--replSet","rs0"]
-  #   ports: ["127.0.0.1:27018:27017"]   # local-only exposure
-  #   volumes:
-  #     - ./ci_retain_data:/data/db
-  #   restart: unless-stopped
+  ci-retain-db-2:
+    image: mongo:7
+    command: ["mongod","--replSet","rs0","--bind_ip_all"]
+    volumes: [ "./ci_retain_data_2:/data/db" ]
+    restart: unless-stopped
+
+  ci-retain-db-3:
+    image: mongo:7
+    command: ["mongod","--replSet","rs0","--bind_ip_all"]
+    volumes: [ "./ci_retain_data_3:/data/db" ]
+    restart: unless-stopped
 
   ci-retain-rs-init:
     image: mongo:7
-    depends_on: { ci-retain-db: { condition: service_started } }
+    depends_on:
+      ci-retain-db-1: { condition: service_started }
+      ci-retain-db-2: { condition: service_started }
+      ci-retain-db-3: { condition: service_started }
     command: >
-      bash -lc 'sleep 2 &&
-      mongosh --host ci-retain-db:27017 --eval "rs.initiate({_id:\\"rs0\\",members:[{_id:0,host:\\"ci-retain-db:27017\\"}]})" || true'
+      bash -lc 'mongosh --host ci-retain-db-1:27017 --eval
+      "rs.initiate({_id:\\"rs0\\",members:[
+         {_id:0,host:\\"ci-retain-db-1:27017\\"},
+         {_id:1,host:\\"ci-retain-db-2:27017\\"},
+         {_id:2,host:\\"ci-retain-db-3:27017\\"}
+      ]})" || true'
     restart: "no"
 
   ci-retain-worker:
     image: python:3.12-slim
     depends_on:
       ci-retain-rs-init: { condition: service_completed_successfully }
-      ci-calc: { condition: service_started }
-    environment:
-      - RETAIN_MONGO_URI=mongodb://ci-retain-db:27017/?replicaSet=rs0
-      - RETAIN_DB_NAME=ci-retainment-db
-      - RETAIN_COLL=pending_ci
-      - WATTPRINT_BASE=https://api.wattprint.eu
-      - WATTPRINT_COOKIE=${WATTPRINT_COOKIE}
-      - RESULT_FORWARD_URL=${RESULT_FORWARD_URL}   # same one you already use
-      - PUE_DEFAULT=1.4
+    env_file: .env
     volumes:
-      - ./retain_worker.py:/app/retain_worker.py:ro
-    command: bash -lc "pip install --no-cache-dir requests pymongo && python -u /app/retain_worker.py"
+      - ./ci_retain_worker/ci_retain_worker.py:/app/ci_retain_worker.py:ro
+    command: bash -lc "pip install --no-cache-dir requests pymongo && python /app/ci_retain_worker.py"
     restart: unless-stopped

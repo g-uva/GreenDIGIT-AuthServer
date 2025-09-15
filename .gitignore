@@ -18,3 +18,4 @@ output/
 sites_data/
 allowed_emails.txt
 ci_retain_data/
+ci_retain_data_*/

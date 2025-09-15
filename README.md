@@ -346,6 +346,7 @@ docker compose exec metrics-db mongosh --quiet --eval \
 'db.getSiblingDB("metricsdb").metrics.getIndexes().map(i=>i.name)'
 ``` -->
 
+
 ```sh
 # See the DB & indexes exist
 docker compose exec ci-retain-db mongosh --quiet --eval '
@@ -358,6 +359,33 @@ docker compose exec ci-retain-db mongosh --quiet --eval '
 db.getSiblingDB("ci-retainment-db").pending_ci.find({valid:false})
   .project({_id:0, lat:1, lon:1, request_time:1, creation_time:1}).limit(5).toArray()
 '
+
+# Verify that a doc landed on the retain-db
+docker compose exec ci-retain-db-1 mongosh --quiet --eval '
+c=db.getSiblingDB("ci-retainment-db");
+printjson(c.pending_ci.getIndexes());
+printjson(c.pending_ci.find({valid:false}).limit(1).toArray());
+'
+## or
+
+docker compose exec ci-retain-db-1 mongosh --quiet --eval '
+c=db.getSiblingDB("ci-retainment-db");
+printjson(c.pending_ci.getIndexes());
+printjson(c.pending_ci.find({valid:false}).limit(1).toArray());
+'
+
+# Verify the replica set.
+docker compose exec ci-retain-db-1 mongosh --quiet --eval 'rs.status().members.map(m=>({name:m.name,state:m.stateStr,health:m.health}))'
+
+# Initialising the retain DBs, in case it is not done by docker compose
+docker compose exec ci-retain-db-1 mongosh --quiet --eval '
+rs.initiate({_id:"rs0",members:[
+ {_id:0,host:"ci-retain-db-1:27017"},
+ {_id:1,host:"ci-retain-db-2:27017"},
+ {_id:2,host:"ci-retain-db-3:27017"}
+]})'
+
+
 ```
 
 ### Integration & Next Steps (Roadmap)
