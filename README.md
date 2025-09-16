@@ -180,6 +180,7 @@ db.metrics.countDocuments({ publisher_email: "goncalo.ferreira@student.uva.nl" }
 # Show just the "body" field (the actual metric)
 db.metrics.find({ publisher_email: "goncalo.ferreira@student.uva.nl" }, { _id: 0, body: 1 }).limit(10).pretty()
 
+
 ### DEV CLEANUP FOR A FRESH RUN (to test resume)
 db.ingest_sessions.updateMany(
   { publisher_email: "goncalo.ferreira@student.uva.nl",
@@ -385,6 +386,10 @@ rs.initiate({_id:"rs0",members:[
  {_id:2,host:"ci-retain-db-3:27017"}
 ]})'
 
+# Cleanup the retain DB in case something goes wrong.
+docker compose exec ci-retain-db-1 mongosh --quiet --eval '
+db.getSiblingDB("ci-retainment-db").pending_ci.deleteMany({})
+'
 
 ```
 
