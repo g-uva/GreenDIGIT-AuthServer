@@ -7,6 +7,10 @@
 set -e
 python3 -m venv . 2>/dev/null || true
 . bin/activate
+pwd
+cd auth_metrics_server
 pip install -r requirements.txt
-python3 get_bearer_token/get_bearer_token.py
+cd ..
+python3 auth_metrics_server/get_bearer_token/get_bearer_token.py
+python3 get_wattprint_token/get_wattprint_token.py
 docker compose up -d --force-recreate --no-deps
