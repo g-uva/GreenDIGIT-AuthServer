@@ -176,6 +176,7 @@ services:
       - RETAIN_TTL_SECONDS=172800
       - AUTH_VERIFY_URL=https://mc-a4.lab.uvalight.net/gd-cim-api/verify_token
       - GD_BEARER_TOKEN=${JWT_TOKEN}
+      - CNR_SQL_FORWARD_URL=http://sql-cnr-adapter:8033/cnr-sql-adapter
     command: uvicorn main:app --host 0.0.0.0 --port 8011 --log-level info
     ports:
       - "8011:8011"
@@ -288,3 +289,13 @@ services:
       - ./ci_retain_worker/ci_retain_worker.py:/app/ci_retain_worker.py:ro
     command: bash -lc "pip install --no-cache-dir requests pymongo && python /app/ci_retain_worker.py"
     restart: unless-stopped
+  
+  sql-cnr-adapter:
+    image: goncaloferreirauva/gd-cnr-adapter-service
+    ports:
+      - 8033:8033
+    # depends_on:
+    #   ci-calc: { condition: service_healthy }
+    env_file: .env
+    restart: unless-stopped
+    command: "uvicorn main:app --host 0.0.0.0 --port 8033 --reload --log-level debug"
