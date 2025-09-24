@@ -180,7 +180,7 @@ services:
     ports:
       - "8011:8011"
     volumes:
-      - "./sites_data/sites_loc_metrics.json:/data/sites_latlngpue.json:ro"
+      - "./sites_data/sites_latlngpue.json:/data/sites_latlngpue.json:ro"
       
 
   # Simple publisher that streams Mongo inserts to the webhook
@@ -197,8 +197,8 @@ services:
       - WATCH_DB=metricsdb
       - WATCH_COLL=metrics
       - GD_BEARER_TOKEN=${JWT_TOKEN}
-      - WEBHOOK_URL=http://ci-calc:8011/ci
-      - SITES_URL=http://ci-calc:8011/load-sites
+      - WEBHOOK_URL=http://ci-calc:8011/transform-and-forward
+      # - SITES_URL=http://ci-calc:8011/load-sites
     volumes:
       - ./auth_metrics_server/publisher/publisher.py:/app/publisher.py:ro
     command: bash -lc "pip install --no-cache-dir pymongo requests python-dateutil && exec python -u /app/publisher.py"
