@@ -390,7 +390,33 @@ rs.initiate({_id:"rs0",members:[
 docker compose exec ci-retain-db-1 mongosh --quiet --eval '
 db.getSiblingDB("ci-retainment-db").pending_ci.deleteMany({})
 '
+```
 
+CNR-Adapter service handy scripts:
+```sh
+curl -X GET http://sql-cnr-adapter:8033/entries/by-site/25
+
+
+curl -s -X POST http://sql-cnr-adapter:8033/cnr-sql-adapter \
+  -H 'Content-Type: application/json' \
+  --data-binary @- <<'JSON'
+{
+  "site": "AEGIS01-IPB-SCL",
+  "duration_s": 3590,
+  "sites": { "site_type": "cloud" },
+  "fact_site_event": {
+    "site": "AEGIS01-IPB-SCL",
+    "event_start_timestamp": "2025-01-01T12:00:00Z",
+    "event_end_timestamp": "2025-01-01T13:00:00Z",
+    "execunitfinished": true,
+    "job_finished": true,
+    "startexectime": "2025-01-01T12:00:05Z",
+    "stopexectime": "2025-01-01T12:59:55Z",
+    "execunitid": "compute-12345"
+  },
+  "detail_cloud": { "execunitid": "compute-12345" }
+}
+JSON
 ```
 
 ### Integration & Next Steps (Roadmap)
