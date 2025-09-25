@@ -21,14 +21,14 @@ fwd_headers = {"Content-Type": "application/json"}
 if GD_BEARER_TOKEN:
     fwd_headers["Authorization"] = f"Bearer {GD_BEARER_TOKEN}"
 
-@app.middleware("http")
-async def log_exceptions(request: Request, call_next):
-    try:
-        return await call_next(request)
-    except Exception as e:
-        print("[adapter] Exception:", e, flush=True)
-        traceback.print_exc()
-        raise
+# @app.middleware("http")
+# async def log_exceptions(request: Request, call_next):
+#     try:
+#         return await call_next(request)
+#     except Exception as e:
+#         print("[adapter] Exception:", e, flush=True)
+#         traceback.print_exc()
+#         raise
 
 def connect():
     while True:

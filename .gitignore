@@ -20,3 +20,4 @@ allowed_emails.txt
 ci_retain_data/
 ci_retain_data_*/
 logs/
+mock_pres_data/

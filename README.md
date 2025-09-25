@@ -398,7 +398,7 @@ curl -X GET http://sql-cnr-adapter:8033/entries/by-site/25
 curl -X DELETE http://sql-cnr-adapter:8033/entries/by-site/25
 
 # To pretty print:
-curl -X GET http://sql-cnr-adapter:8033/entries/by-site/25 | jq
+curl -X GET http://sql-cnr-adapter:8033/entries/by-site/26 | jq
 
 curl -s -X POST http://sql-cnr-adapter:8033/cnr-sql-adapter \
   -H 'Content-Type: application/json' \
