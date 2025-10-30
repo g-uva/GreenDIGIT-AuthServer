@@ -38,7 +38,7 @@ tags_metadata = [
 
 
 app = FastAPI(
-    title="GreenDIGIT WP6.2 CIM Metrics API",
+    title="GreenDIGIT WP6 CIM Metrics API",
     version="1.0.0",
     openapi_tags=tags_metadata,
     swagger_ui_parameters={"persistAuthorization": True},
