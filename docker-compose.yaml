@@ -130,15 +130,13 @@ services:
         mongosh --host "metrics-db:27017" --quiet <<'JS'
         const dbm = db.getSiblingDB("metricsdb");
 
-        // 1) Idempotency-style unique key (email + idempotency + seq)
+        // 1) Drop legacy idempotency unique key (email + idempotency + seq).
+        //    We now allow unlimited submissions even with missing idempotency metadata.
         try {
-          dbm.metrics.createIndex(
-            { publisher_email: 1, idempotency_key: 1, seq: 1 },
-            { unique: true, name: "uniq_email_idem_seq" }
-          );
-          print("Created uniq_email_idem_seq");
+          dbm.metrics.dropIndex("uniq_email_idem_seq");
+          print("Dropped uniq_email_idem_seq");
         } catch (e) {
-          print("Index1:", e.message);
+          print("DropIndex1:", e.message);
         }
 
         // 2) Metric tuple uniqueness (email + metric + node + ts)

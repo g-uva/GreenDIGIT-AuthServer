@@ -27,7 +27,21 @@ _sess.create_index(
     name="uq_pub_batch_seq", unique=True
 )
 
+def _drop_legacy_idempotency_index() -> None:
+    """
+    Remove the old unique index (publisher_email, idempotency_key, seq) from the
+    metrics collection so repeated submissions are always accepted.
+    """
+    try:
+        idx_info = _col.index_information()
+        if "uniq_email_idem_seq" in idx_info:
+            _col.drop_index("uniq_email_idem_seq")
+    except PyMongoError:
+        # Best-effort; do not block startup if drop fails.
+        pass
+
 def ensure_indexes() -> None:
+    _drop_legacy_idempotency_index()
     # writer/reader friendly
     _col.create_index([("timestamp", ASCENDING)], name="ix_timestamp")
     _col.create_index([("publisher_email", ASCENDING)], name="ix_publisher_email")
