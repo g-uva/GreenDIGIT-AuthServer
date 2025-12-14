@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+*.pyo
+
+# Local venv artifacts that break COPY (symlinks to host /usr).
+bin/
+lib/
+lib64/
+include/
+pyvenv.cfg
+
+# Dev/runtime artifacts not needed in the image.
+*.db
+*.sqlite3
+.env
+*.env
+*.log
+users.db
+
+# VCS/IDE
+.git
+.vscode

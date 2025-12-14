@@ -2,6 +2,7 @@
 import os, time, traceback, threading, requests
 from pymongo import MongoClient, errors
 from datetime import datetime, timezone
+from bson import ObjectId
 
 MONGO_URI  = os.environ["MONGO_URI"]
 DB         = os.environ.get("WATCH_DB","metricsdb")
@@ -21,14 +22,18 @@ fwd_headers = {"Content-Type": "application/json"}
 if GD_BEARER_TOKEN:
     fwd_headers["Authorization"] = f"Bearer {GD_BEARER_TOKEN}"
 
-# @app.middleware("http")
-# async def log_exceptions(request: Request, call_next):
-#     try:
-#         return await call_next(request)
-#     except Exception as e:
-#         print("[adapter] Exception:", e, flush=True)
-#         traceback.print_exc()
-#         raise
+def jsonable(x):
+    if isinstance(x, ObjectId):
+        return str(x)
+    if isinstance(x, datetime):
+        return to_iso_z(x)
+    if isinstance(x, dict):
+        return {k: jsonable(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple, set)):
+        return [jsonable(v) for v in x]
+    if isinstance(x, (str, int, float, bool)) or x is None:
+        return x
+    return str(x)
 
 def connect():
     while True:
@@ -69,7 +74,7 @@ def watch_inserts(coll):
             for change in stream:
                 try:
                     # send the full metrics JSON directly to /transform-and-forward
-                    payload = to_ci_request(change)
+                    payload = jsonable(to_ci_request(change))
                     r = session.post(WEBHOOK_URL, json=payload, headers=headers, timeout=20)
                     print(f"→ POST {WEBHOOK_URL} -> {r.status_code}", flush=True)
                     if not r.ok:
@@ -94,9 +99,9 @@ def watch_updates(coll):
         with coll.watch([{"$match":{"operationType":"update"}}], full_document="updateLookup") as stream2:
             for change in stream2:
                 full_metric = change.get("fullDocument") or {}
-                ci = full_metric.get("cfp_ci_service")
-                if not ci or not RESULT_FORWARD_URL:
-                    continue
+                # ci = full_metric.get("cfp_ci_service")
+                # if not ci or not RESULT_FORWARD_URL:
+                #     continue
                 cim_payload = {
                     "publisher_email": full_metric.get("publisher_email","unknown@example.org"),
                     "job_id": str(full_metric.get("job_id", full_metric.get("_id"))),
@@ -105,7 +110,7 @@ def watch_updates(coll):
                         "metric": (full_metric.get("body") or {}).get("metric", "unknown"),
                         "value": (full_metric.get("body") or {}).get("value", 0.0),
                         "timestamp": to_iso_z((full_metric.get("body") or {}).get("ts")),
-                        "cfp_ci_service": ci
+                        # "cfp_ci_service": ci
                     }]
                 }
                 try:
