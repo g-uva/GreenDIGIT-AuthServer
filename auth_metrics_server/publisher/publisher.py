@@ -8,10 +8,10 @@ MONGO_URI  = os.environ["MONGO_URI"]
 DB         = os.environ.get("WATCH_DB","metricsdb")
 COLL       = os.environ.get("WATCH_COLL","metrics")
 
-WEBHOOK_URL         = os.environ["WEBHOOK_URL"]
+CIM_INTERNAL_ENDPOINT         = os.environ["CIM_INTERNAL_ENDPOINT"]
 GD_BEARER_TOKEN     = os.environ.get("GD_BEARER_TOKEN","")
 # SITES_URL           = os.environ.get("SITES_URL","http://ci-calc:8011/load-sites")
-RESULT_FORWARD_URL  = os.environ.get("RESULT_FORWARD_URL","")
+KPI_INTERNAL_ENDPOINT  = os.environ.get("KPI_INTERNAL_ENDPOINT","")
 
 session = requests.Session()
 headers = {"Content-Type": "application/json"}
@@ -69,14 +69,14 @@ def to_ci_request(change: dict) -> dict:
 
 def watch_inserts(coll):
     try:
-        print(f"Watching {DB}.{COLL} for inserts → {WEBHOOK_URL}", flush=True)
+        print(f"Watching {DB}.{COLL} for inserts → {CIM_INTERNAL_ENDPOINT}", flush=True)
         with coll.watch([{"$match":{"operationType":"insert"}}], full_document="updateLookup") as stream:
             for change in stream:
                 try:
                     # send the full metrics JSON directly to /transform-and-forward
                     payload = jsonable(to_ci_request(change))
-                    r = session.post(WEBHOOK_URL, json=payload, headers=headers, timeout=20)
-                    print(f"→ POST {WEBHOOK_URL} -> {r.status_code}", flush=True)
+                    r = session.post(CIM_INTERNAL_ENDPOINT, json=payload, headers=headers, timeout=20)
+                    print(f"→ POST {CIM_INTERNAL_ENDPOINT} -> {r.status_code}", flush=True)
                     if not r.ok:
                         try:
                             print("Response body:", r.text[:400], flush=True)
@@ -95,12 +95,12 @@ def watch_inserts(coll):
 
 def watch_updates(coll):
     try:
-        print(f"Watching {DB}.{COLL} for updates (cfp_ci_service) → {RESULT_FORWARD_URL}", flush=True)
+        print(f"Watching {DB}.{COLL} for updates (cfp_ci_service) → {KPI_INTERNAL_ENDPOINT}", flush=True)
         with coll.watch([{"$match":{"operationType":"update"}}], full_document="updateLookup") as stream2:
             for change in stream2:
                 full_metric = change.get("fullDocument") or {}
                 # ci = full_metric.get("cfp_ci_service")
-                # if not ci or not RESULT_FORWARD_URL:
+                # if not ci or not KPI_INTERNAL_ENDPOINT:
                 #     continue
                 cim_payload = {
                     "publisher_email": full_metric.get("publisher_email","unknown@example.org"),
@@ -114,8 +114,8 @@ def watch_updates(coll):
                     }]
                 }
                 try:
-                    fr = session.post(RESULT_FORWARD_URL, json=cim_payload, headers=fwd_headers, timeout=20)
-                    print("→ FORWARD (update)", RESULT_FORWARD_URL, "->", fr.status_code, flush=True)
+                    fr = session.post(KPI_INTERNAL_ENDPOINT, json=cim_payload, headers=fwd_headers, timeout=20)
+                    print("→ FORWARD (update)", KPI_INTERNAL_ENDPOINT, "->", fr.status_code, flush=True)
                     if fr.status_code >= 400:
                         print("Response body:", fr.text[:400], flush=True)
                 except Exception as e:
