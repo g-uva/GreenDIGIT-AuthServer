@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Request, Body, Query
+from fastapi import FastAPI, Depends, HTTPException, status, Request, Body, Query, APIRouter
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordRequestForm
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -42,19 +42,23 @@ app = FastAPI(
     version="1.0.0",
     openapi_tags=tags_metadata,
     swagger_ui_parameters={"persistAuthorization": True},
-    root_path="/gd-cim-api"
+    root_path="/gd-cim-api",
+    docs_url="/v1/docs",
+    openapi_url="/v1/openapi.json",
 )
+router = APIRouter(prefix="/v1")
 prefix = app.root_path or ""
 app.description = (
     "API for publishing metrics for GreenDIGIT WP6 partners (IFcA, DIRAC, and UTH).\n\n"
     "**Authentication**\n\n"
-    "- Obtain a token via **POST /login** using form fields `email` and `password`. "
+    "- Obtain a token via **POST /v1/login** using form fields `email` and `password`, "
+    "or via **GET /v1/token** with query parameters `email` and `password`. "
     "Your email must be registered beforehand. If it fails (wrong password/unknown), "
     "please contact goncalo.ferreira@student.uva.nl or a.tahir2@uva.nl.\n"
     "- Then include `Authorization: Bearer <token>` on all protected requests.\n"
     "- Tokens expire after 1 day — regenerate when needed.\n\n"
     "### Funding and acknowledgements\n"
-    "This work is funded from the European Union’s Horizon Europe research and innovation programme "
+    "This work is funded from the European Union's Horizon Europe research and innovation programme "
     "through the [GreenDIGIT project](https://greendigit-project.eu/), under the grant agreement "
     "No. [101131207](https://cordis.europa.eu/project/id/101131207).\n\n"
     # GitHub badge (Markdown)
@@ -164,7 +168,7 @@ async def catch_all_errors(request: Request, call_next):
             content={"ok": False, "error": f"{type(e).__name__}: {e}", "req_id": req_id}
         )
 
-@app.post(
+@router.post(
     "/login",
     tags=["Auth"],
     summary="Login and get a JWT access token",
@@ -397,11 +401,11 @@ def static_url(request: Request, filename: str) -> str:
         prefix = prefix[:-1]
     return f"{prefix}/static/{filename}"
 
-@app.get(
+@router.get(
     "/token-ui",
     tags=["Auth"],
     summary="Simple HTML login to manually obtain a token",
-    description="Convenience page that POSTs to `/login`.",
+    description="Convenience page that POSTs to `/v1/login`.",
     response_class=HTMLResponse
 )
 def token_ui(request: Request):
@@ -588,7 +592,7 @@ def token_ui(request: Request):
                 </div>
 
                 <div class="footer">
-                    This work is funded from the European Union’s Horizon Europe research and innovation programme through the 
+                    This work is funded from the European Union's Horizon Europe research and innovation programme through the 
                     <a href="https://greendigit-project.eu/" target="_blank">GreenDIGIT project</a>, under the grant agreement No. 
                     <a href="https://cordis.europa.eu/project/id/101131207" target="_blank">101131207</a>.
                     
@@ -602,14 +606,14 @@ def token_ui(request: Request):
         </html>
     """
 
-@app.post(
+@router.post(
     "/submit",
     tags=["Metrics"],
     summary="Submit a metrics JSON payload",
     description=(
         "Stores an arbitrary JSON document as a metric entry.\n\n"
         "**Requires:** `Authorization: Bearer <token>`.\n\n"
-        "The `publisher_email` is derived from the token’s `sub` claim."
+        "The `publisher_email` is derived from the token's `sub` claim."
     ),
     responses={
         200: {"description": "Stored successfully"},
@@ -641,7 +645,7 @@ async def submit(
         raise HTTPException(status_code=500, detail=f"DB error: {ack.get('error')}")
     return {"stored": ack}
 
-@app.get(
+@router.get(
     "/metrics/me",
     tags=["Metrics"],
     summary="List my published metrics",
@@ -668,7 +672,7 @@ def get_my_metrics(publisher_email: str = Depends(verify_token)):
 class PasswordResetRequest(BaseModel):
     new_password: str
 
-@app.post("/reset-password", tags=["Auth"], summary="Reset my password")
+@router.post("/reset-password", tags=["Auth"], summary="Reset my password")
 def reset_password(
     data: PasswordResetRequest,
     publisher_email: str = Depends(verify_token),
@@ -686,28 +690,32 @@ def reset_password(
     db.commit()
     return {"msg": "Password updated successfully"}
 
-@app.get("/verify_token", tags=["Auth"], summary=["Validate GreenDIGIT JWT based token."])
+@router.get("/verify-token", tags=["Auth"], summary=["Validate GreenDIGIT JWT based token."])
 def verify_token_endpoint(email: str = Depends(verify_token)):
     return { "valid": True, "sub": email }
 
 
-@app.post(
-    "/get-token",
+@router.get(
+    "/token",
     tags=["Auth"],
-    summary="Get JWT via JSON body (email and password).",
-    description="Returns JSON: {access_token, token_type, expires_in}."
+    summary="Get JWT via query string (email and password).",
+    description="Returns JSON: {access_token, token_type, expires_in}. Accepts `email` and `password` as query parameters."
 )
-def get_token(body: GetTokenRequest, db: Session = Depends(get_db)):
-    email_lower = body.email.strip().lower()
+def get_token(
+    email: str = Query(..., description="User email"),
+    password: str = Query(..., description="User password"),
+    db: Session = Depends(get_db)
+):
+    email_lower = email.strip().lower()
     user = db.query(User).filter(User.email == email_lower).first()
     if not user:
         allowed_emails = load_allowed_emails()
         if email_lower not in allowed_emails:
             raise HTTPException(status_code=403, detail="Email not allowed")
-        hashed_password = pwd_context.hash(body.password)
+        hashed_password = pwd_context.hash(password)
         user = User(email=email_lower, hashed_password=hashed_password)
         db.add(user); db.commit(); db.refresh(user)
-    elif not pwd_context.verify(body.password, user.hashed_password):
+    elif not pwd_context.verify(password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect password. \n If you have forgotten your password please contact the GreenDIGIT team: goncalo.ferreira@student.uva.nl.")
 
     now = int(time.time())
@@ -721,7 +729,7 @@ def get_token(body: GetTokenRequest, db: Session = Depends(get_db)):
     token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
     return {"access_token": token, "token_type": "bearer", "expires_in": ACCESS_TOKEN_EXPIRE_SECONDS}
 
-@app.post(
+@router.post(
     "/cim-json",
     tags=["Metrics"],
     summary="Submit JSON metrics for conversion to SQL.",
@@ -755,3 +763,5 @@ def digest_cim_json(body: PostCimJsonRequest):
         print(row)
 
     return {"ok": True, "rows_prepared": len(mock_sql)}
+
+app.include_router(router)
